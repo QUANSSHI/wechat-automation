@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum CAD - 极简现代网页版 CAD 绘图系统</title>
+    <meta name="description" content="基于 HTML5 Canvas 和现代玻璃拟态设计的轻量级、交互式在线 CAD 绘图工具。">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- 1. Canvas 绘图主区域 -->
+    <div id="canvas-container">
+        <canvas id="cad-canvas"></canvas>
+    </div>
+
+    <!-- 2. 顶部工具栏 (File Operations) -->
+    <header id="top-bar" class="glass-panel">
+        <div class="logo-section">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            <h1>QUANTUM CAD</h1>
+        </div>
+
+        <div class="file-ops">
+            <button id="btn-new" class="btn-text btn-danger" data-tooltip="新建空白画布 (Ctrl+N)">
+                <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19V5"/></svg>
+                清空
+            </button>
+            <input type="file" id="file-loader" class="hidden-file-input" accept=".json">
+            <button id="btn-open" class="btn-text" data-tooltip="打开保存的 CAD 工程 (.json)">
+                <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                打开工程
+            </button>
+            <button id="btn-load-template" class="btn-text btn-primary" data-tooltip="一键 1:1 完美重现截图二高精室内装修矢量图纸">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                还原1:1户型样图
+            </button>
+            <button id="btn-save" class="btn-text" data-tooltip="保存工程为本地 JSON 文件">
+                <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
+                保存工程
+            </button>
+            <button id="btn-toggle-theme" class="btn-text" data-tooltip="切换背景主题 (白图纸/蓝图纸)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                切换主题
+            </button>
+            <button id="btn-export-svg" class="btn-text btn-primary" data-tooltip="导出无损矢量 SVG 格式">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                导出 SVG
+            </button>
+            <button id="btn-export-png" class="btn-text" data-tooltip="导出高清 PNG 图像">
+                <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                导出图片
+            </button>
+        </div>
+    </header>
+
+    <!-- 3. 左侧悬浮绘图工具栏 (Drawing Tools) -->
+    <nav id="left-toolbar" class="glass-panel">
+        <div class="tool-group">
+            <button id="tool-select" class="btn-icon active" data-tooltip="选择/移动图形 (V)">
+                <svg viewBox="0 0 24 24">
+                    <polygon points="3,2 11,18 14,12 21,12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="tool-separator"></div>
+
+        <div class="tool-group">
+            <button id="tool-line" class="btn-icon" data-tooltip="绘制直线 (L)">
+                <svg viewBox="0 0 24 24">
+                    <line x1="4" y1="20" x2="20" y2="4"/>
+                </svg>
+            </button>
+            <button id="tool-rect" class="btn-icon" data-tooltip="绘制矩形 (R)">
+                <svg viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                </svg>
+            </button>
+            <button id="tool-circle" class="btn-icon" data-tooltip="绘制圆形 (C)">
+                <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9"/>
+                </svg>
+            </button>
+            <button id="tool-curve" class="btn-icon" data-tooltip="绘制曲线 (Q)">
+                <svg viewBox="0 0 24 24">
+                    <path d="M3 12c3-6 6-6 9 0s6 6 9 0"/>
+                </svg>
+            </button>
+            <button id="tool-text" class="btn-icon" data-tooltip="绘制文字 (T)">
+                <svg viewBox="0 0 24 24">
+                    <polyline points="4 7 4 4 20 4 20 7"/>
+                    <line x1="9" y1="20" x2="15" y2="20"/>
+                    <line x1="12" y1="4" x2="12" y2="20"/>
+                </svg>
+            </button>
+            <button id="tool-dim" class="btn-icon" data-tooltip="标注距离尺寸 (D)">
+                <svg viewBox="0 0 24 24">
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                    <polyline points="6 15 3 18 6 21"/>
+                    <polyline points="18 15 21 18 18 21"/>
+                    <line x1="3" y1="11" x2="3" y2="16"/>
+                    <line x1="21" y1="11" x2="21" y2="16"/>
+                    <path d="M9 6 L9 10 M15 6 L15 10"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="tool-separator"></div>
+
+        <div class="tool-group">
+            <button id="btn-toggle-snap" class="btn-icon active" data-tooltip="开关网格强力吸附 (S)">
+                <svg viewBox="0 0 24 24">
+                    <path d="M5 15H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4h7a4 4 0 0 1 4 4v1"/>
+                    <path d="M19 9h1a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4h-7a4 4 0 0 1-4-4v-1"/>
+                    <circle cx="12" cy="12" r="2"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="tool-separator" style="flex-grow: 1;"></div>
+
+        <div class="tool-group">
+            <button id="btn-undo" class="btn-icon" data-tooltip="撤销上一步操作 (Ctrl+Z)">
+                <svg viewBox="0 0 24 24">
+                    <path d="M3 7v6h6"/>
+                    <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+                </svg>
+            </button>
+            <button id="btn-redo" class="btn-icon" data-tooltip="重做下一步操作 (Ctrl+Y)">
+                <svg viewBox="0 0 24 24">
+                    <path d="M21 7v6h-6"/>
+                    <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- 4. 右侧控制面板 (Properties Inspector & Layer Manager) -->
+    <aside id="right-sidebar" class="glass-panel">
+        <!-- 4a. 属性调节面板 -->
+        <section class="sidebar-section">
+            <h3>元素属性选择</h3>
+            <div id="inspector-default">
+                <div class="prop-row">
+                    <label for="prop-stroke">线条颜色</label>
+                    <div class="prop-value">
+                        <input type="color" id="prop-stroke" class="input-color" value="#00f2fe">
+                    </div>
+                </div>
+                <div class="prop-row">
+                    <label for="prop-stroke-width">线条粗细</label>
+                    <div class="prop-value">
+                        <select id="prop-stroke-width" class="input-select">
+                            <option value="1">1 px (极细)</option>
+                            <option value="2" selected>2 px (标准)</option>
+                            <option value="4">4 px (粗线)</option>
+                            <option value="6">6 px (加粗)</option>
+                            <option value="10">10 px (轮廓)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="prop-row">
+                    <label for="prop-stroke-style">线条样式</label>
+                    <div class="prop-value">
+                        <select id="prop-stroke-style" class="input-select">
+                            <option value="solid" selected>⎯⎯⎯⎯ 实线</option>
+                            <option value="dashed">-- -- -- 虚线</option>
+                            <option value="dotted">. . . . . 点线</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="prop-row">
+                    <label for="prop-fill-toggle">开启填充</label>
+                    <div class="prop-value">
+                        <input type="checkbox" id="prop-fill-toggle" style="width: 16px; height: 16px; cursor: pointer;">
+                    </div>
+                </div>
+                <div class="prop-row" id="prop-fill-color-row" style="display: none;">
+                    <label for="prop-fill">填充颜色</label>
+                    <div class="prop-value">
+                        <input type="color" id="prop-fill" class="input-color" value="#00f2fe">
+                    </div>
+                </div>
+                <div class="prop-row" id="prop-text-row" style="display: none;">
+                    <label for="prop-text-value">文字内容</label>
+                    <div class="prop-value" style="width: 100%; margin-top: 5px;">
+                        <input type="text" id="prop-text-value" class="input-text" placeholder="输入标注文字...">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4a-2. 图纸智能识别微调面板 -->
+        <section class="sidebar-section" id="vectorizer-tuning-panel" style="display: none; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 15px;">
+            <h3 style="display: flex; align-items: center; gap: 6px;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent); margin: 0;">
+                    <path d="M12 20v-6M6 20V10M18 20V4M6 14h12"/>
+                </svg>
+                识别精度实时微调
+            </h3>
+            <div style="margin-bottom: 12px; font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
+                检测到已粘贴图纸。拖动滑块可实时重新矢量化重构，获得最佳还原度。
+            </div>
+            
+            <div class="prop-row">
+                <label for="tune-sens" data-tooltip="调节线条敏感度 (0 代表自适应 Otsu 阈值)">识别敏感度</label>
+                <div class="prop-value" style="width: 65%;">
+                    <input type="range" id="tune-sens" class="input-range" min="0" max="255" value="0">
+                    <span id="val-sens" class="range-val">自动</span>
+                </div>
+            </div>
+
+            <div class="prop-row">
+                <label for="tune-wall-thick" data-tooltip="双线墙合并的最大像素宽度">墙体厚度</label>
+                <div class="prop-value" style="width: 65%;">
+                    <input type="range" id="tune-wall-thick" class="input-range" min="6" max="60" value="20">
+                    <span id="val-wall-thick" class="range-val">20px</span>
+                </div>
+            </div>
+
+            <div class="prop-row">
+                <label for="tune-min-run" data-tooltip="过滤小于此长度的噪声小线段">小线段过滤</label>
+                <div class="prop-value" style="width: 65%;">
+                    <input type="range" id="tune-min-run" class="input-range" min="6" max="50" value="18">
+                    <span id="val-min-run" class="range-val">18px</span>
+                </div>
+            </div>
+
+            <div class="prop-row">
+                <label for="tune-snap" data-tooltip="墙线端点相互吸附粘合的最大间距">端点吸附距</label>
+                <div class="prop-value" style="width: 65%;">
+                    <input type="range" id="tune-snap" class="input-range" min="10" max="60" value="30">
+                    <span id="val-snap" class="range-val">30px</span>
+                </div>
+            </div>
+            
+            <button id="btn-re-vectorize" class="btn-text btn-primary" style="width: 100%; margin-top: 8px; justify-content: center;" data-tooltip="强制重新以当前参数提取图纸">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                重新识别
+            </button>
+        </section>
+
+        <!-- 4b. 图层管理器 -->
+        <section class="sidebar-section" style="flex-grow: 1; min-height: 200px; display: flex; flex-direction: column;">
+            <h3>图层控制</h3>
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <input type="text" id="input-new-layer" class="input-text" placeholder="新图层名称..." style="flex-grow: 1;">
+                <button id="btn-add-layer" class="btn-text btn-primary" style="padding: 5px 10px;" data-tooltip="添加新图层">添加</button>
+            </div>
+            <div class="layer-list" id="layer-container" style="flex-grow: 1; overflow-y: auto;">
+                <!-- 动态填充 -->
+            </div>
+        </section>
+    </aside>
+
+    <!-- 5. 底部状态栏 (Bottom Status Bar) -->
+    <footer id="status-bar" class="glass-panel">
+        <div class="status-left">
+            <div class="status-item">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                网格座标: X: <span id="coord-x" class="highlight">0.00</span>, Y: <span id="coord-y" class="highlight">0.00</span> mm
+            </div>
+            <div class="status-item">
+                状态: <span id="status-activity" class="highlight">准备就绪</span>
+            </div>
+        </div>
+        <div class="status-right">
+            <div class="status-item">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg>
+                比例缩放: <span id="zoom-factor" class="highlight">100%</span>
+            </div>
+            <div class="status-item">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+                对齐: <span id="snap-status" class="highlight">开启</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 6. 通用二次确认弹窗 (Action Confirmation Modals) -->
+    <div id="modal-clear-confirm" class="modal-overlay">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <h2>⚠️ 确认清空画布？</h2>
+                <button class="btn-icon btn-close" style="width: 24px; height: 24px;">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>这将清除您在画布上绘制的**所有图形和标注数据**，且该操作**不可撤销**。确定要继续吗？</p>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-clear-cancel" class="btn-text">取消</button>
+                <button id="btn-clear-confirm" class="btn-text btn-danger">确认清空</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入核心逻辑脚本 -->
+    <script src="app.js"></script>
+</body>
+</html>
