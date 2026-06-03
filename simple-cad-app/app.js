@@ -437,6 +437,8 @@ class CADEngine {
 
         this.theme = 'dark'; // 'dark' or 'light'
         this.lastPastedBlob = null;
+        this.isStretchingEndpoint = false;
+        this.stretchEndpointIndex = null;
 
         this.initViewport();
         this.initEventListeners();
@@ -696,7 +698,29 @@ class CADEngine {
             // 2. 左键点击逻辑
             if (e.button === 0) {
                 if (this.activeTool === 'select') {
-                    // 选择模式
+                    // 优先检查是否点击了已选中线段/标注的端点控制柄，实现拉伸功能
+                    if (this.selectedShape && (this.selectedShape.type === 'line' || this.selectedShape.type === 'dim')) {
+                        const s = this.selectedShape;
+                        const dist1 = Math.sqrt((worldPt.x - s.x1)**2 + (worldPt.y - s.y1)**2);
+                        const dist2 = Math.sqrt((worldPt.x - s.x2)**2 + (worldPt.y - s.y2)**2);
+                        const handleTol = 12 / this.zoom; // 屏幕像素容差
+
+                        if (dist1 < handleTol) {
+                            this.isStretchingEndpoint = true;
+                            this.stretchEndpointIndex = 1;
+                            this.dragOffset = { x: worldPt.x, y: worldPt.y };
+                            this.render();
+                            return;
+                        } else if (dist2 < handleTol) {
+                            this.isStretchingEndpoint = true;
+                            this.stretchEndpointIndex = 2;
+                            this.dragOffset = { x: worldPt.x, y: worldPt.y };
+                            this.render();
+                            return;
+                        }
+                    }
+
+                    // 否则执行正常的选择与拖拽移动模式
                     const clicked = this.findClickedShape(worldPt);
                     if (clicked) {
                         this.selectedShape = clicked;
@@ -783,6 +807,23 @@ class CADEngine {
                 return;
             }
 
+            // 2b. 选中线段/标注后拉伸端点控制柄
+            if (this.activeTool === 'select' && this.isStretchingEndpoint && this.selectedShape) {
+                const s = this.selectedShape;
+                const targetPt = this.snapToGrid ? snappedPt : worldPt;
+
+                if (this.stretchEndpointIndex === 1) {
+                    s.x1 = targetPt.x;
+                    s.y1 = targetPt.y;
+                } else if (this.stretchEndpointIndex === 2) {
+                    s.x2 = targetPt.x;
+                    s.y2 = targetPt.y;
+                }
+
+                this.render();
+                return;
+            }
+
             // 3. 处于绘制状态，更新预览
             if (this.drawingStartPoint) {
                 if (this.activeTool === 'curve') {
@@ -799,6 +840,23 @@ class CADEngine {
                 if (this.snapToGrid) {
                     this.render();
                 }
+
+                // 4. 鼠标悬停在已选中线段端点上时改变光标样式以提示拉伸
+                if (this.activeTool === 'select' && this.selectedShape && !this.isDraggingShape && !this.isPanning && !this.isStretchingEndpoint) {
+                    const s = this.selectedShape;
+                    if (s.type === 'line' || s.type === 'dim') {
+                        const dist1 = Math.sqrt((worldPt.x - s.x1)**2 + (worldPt.y - s.y1)**2);
+                        const dist2 = Math.sqrt((worldPt.x - s.x2)**2 + (worldPt.y - s.y2)**2);
+                        const handleTol = 12 / this.zoom;
+                        if (dist1 < handleTol || dist2 < handleTol) {
+                            c.style.cursor = 'pointer';
+                        } else {
+                            c.style.cursor = 'default';
+                        }
+                    } else {
+                        c.style.cursor = 'default';
+                    }
+                }
             }
         });
 
@@ -813,6 +871,13 @@ class CADEngine {
             if (this.activeTool === 'select' && this.isDraggingShape) {
                 this.isDraggingShape = false;
                 this.saveState(); // 拖动完成后记录状态
+                return;
+            }
+
+            if (this.activeTool === 'select' && this.isStretchingEndpoint) {
+                this.isStretchingEndpoint = false;
+                this.stretchEndpointIndex = null;
+                this.saveState(); // 拉伸完成后记录状态
                 return;
             }
 
@@ -1540,19 +1605,74 @@ class CADEngine {
                 binaryArr[i] = isDarkBg ? (grayValues[i] > actualThreshold ? 1 : 0) : (grayValues[i] < actualThreshold ? 1 : 0);
             }
 
-            // 形态学腐蚀：去除孤立噪点
+            // ===== 第一阶段后期：自适应平滑与补线（专门针对微信截图/PDF抗锯齿断裂线条） =====
             const cleanArr = new Uint8Array(totalPixels);
+            
+            // 步骤 1：横纵向缝隙智能桥接（解决微信 PDF 截图因像素渲染产生的细微虚线和断点）
+            const tempBinary = new Uint8Array(binaryArr);
+            
+            // 进行 2 轮缝隙填补（支持最多 2px 级别的断点连接）
+            for (let pass = 0; pass < 2; pass++) {
+                for (let y = 2; y < h - 2; y++) {
+                    for (let x = 2; x < w - 2; x++) {
+                        const ci = y * w + x;
+                        if (tempBinary[ci] === 0) {
+                            // 水平方向桥接: [1, 0, 1] 或 [1, 0, 0, 1]
+                            const left1 = tempBinary[ci - 1], right1 = tempBinary[ci + 1];
+                            const left2 = tempBinary[ci - 2], right2 = tempBinary[ci + 2];
+                            
+                            // 垂直方向桥接: [1, 0, 1] 或 [1, 0, 0, 1]
+                            const top1 = tempBinary[ci - w], bottom1 = tempBinary[ci + w];
+                            const top2 = tempBinary[ci - 2 * w], bottom2 = tempBinary[ci + 2 * w];
+
+                            if ((left1 === 1 && right1 === 1) || 
+                                (left1 === 1 && right2 === 1 && tempBinary[ci + 1] === 0) ||
+                                (left2 === 1 && right2 === 1 && tempBinary[ci - 1] === 0)) {
+                                tempBinary[ci] = 1;
+                            } else if ((top1 === 1 && bottom1 === 1) ||
+                                       (top1 === 1 && bottom2 === 1 && tempBinary[ci + w] === 0) ||
+                                       (top2 === 1 && bottom1 === 1 && tempBinary[ci - w] === 0)) {
+                                tempBinary[ci] = 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 步骤 2：保护端点的形态学滤波（去除孤立随机噪点，但保留连续的细墙线）
             for (let y = 1; y < h - 1; y++) {
                 for (let x = 1; x < w - 1; x++) {
                     const ci = y * w + x;
-                    if (binaryArr[ci] === 0) continue;
+                    if (tempBinary[ci] === 0) continue;
+
+                    // 计算 3x3 邻域的前景像素数量
                     let nb = 0;
-                    for (let dy = -1; dy <= 1; dy++)
+                    for (let dy = -1; dy <= 1; dy++) {
                         for (let dx = -1; dx <= 1; dx++) {
                             if (dx === 0 && dy === 0) continue;
-                            if (binaryArr[(y+dy)*w+(x+dx)] === 1) nb++;
+                            if (tempBinary[(y + dy) * w + (x + dx)] === 1) nb++;
                         }
-                    cleanArr[ci] = nb >= 2 ? 1 : 0;
+                    }
+
+                    // 微信 PDF 截图的线条可能只有 1 像素宽。如果它有至少 2 个邻居，我们保留它。
+                    if (nb >= 2) {
+                        cleanArr[ci] = 1;
+                    } else if (nb === 1) {
+                        // 只有一个邻居时，检查 5x5 领域是否有超过 3 个像素（说明它是一个线段的端点，而非孤立噪声点）
+                        let nb5x5 = 0;
+                        const r = 2;
+                        for (let dy = -r; dy <= r; dy++) {
+                            for (let dx = -r; dx <= r; dx++) {
+                                const nx = x + dx, ny = y + dy;
+                                if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                                    if (tempBinary[ny * w + nx] === 1) nb5x5++;
+                                }
+                            }
+                        }
+                        cleanArr[ci] = nb5x5 >= 3 ? 1 : 0;
+                    } else {
+                        cleanArr[ci] = 0; // 0 个邻居，绝对是孤立噪声点，清除！
+                    }
                 }
             }
 
