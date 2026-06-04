@@ -243,6 +243,33 @@
             </button>
         </section>
 
+        <!-- 4a-3. Gemini AI 智能识别面板 (V3.5) -->
+        <section class="sidebar-section" id="vectorizer-ai-panel" style="display: none; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 15px;">
+            <h3 style="display: flex; align-items: center; gap: 6px;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#a855f7" stroke-width="2" style="margin: 0;">
+                    <polygon points="12,2 2,22 22,22"/>
+                </svg>
+                Gemini 大模型智能重构
+            </h3>
+            <div style="margin-bottom: 12px; font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
+                使用谷歌 Gemini 2.5 视觉模型，自动过滤彩色实木地板纹理或复杂阴影，1:1 精准重构复杂图纸。
+            </div>
+
+            <div class="prop-row">
+                <label for="ai-key" data-tooltip="输入您的 Google Gemini API Key">Gemini API Key</label>
+                <div class="prop-value" style="width: 65%;">
+                    <input type="password" id="ai-key" class="input-text" style="width: 100%; font-size: 0.75rem; text-align: left; padding: 4px 8px;" placeholder="输入 Key (本地缓存)...">
+                </div>
+            </div>
+
+            <button id="btn-ai-reconstruct" class="btn-text" style="width: 100%; margin-top: 8px; justify-content: center; background-color: rgba(168, 85, 247, 0.15); border-color: #a855f7; color: #d8b4fe;" data-tooltip="使用 Gemini 视觉大模型云端处理已粘贴的图片">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                AI 智能一键重构
+            </button>
+        </section>
+
         <!-- 4b. 图层管理器 -->
         <section class="sidebar-section" style="flex-grow: 1; min-height: 200px; display: flex; flex-direction: column;">
             <h3>图层控制</h3>

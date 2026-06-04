@@ -1529,6 +1529,8 @@ class CADEngine {
             // 智能微调面板显隐与初始化
             const tuningPanel = document.getElementById('vectorizer-tuning-panel');
             if (tuningPanel) tuningPanel.style.display = 'block';
+            const aiPanel = document.getElementById('vectorizer-ai-panel');
+            if (aiPanel) aiPanel.style.display = 'block';
 
             const isNewImage = !this.lastPastedBlob || this.lastPastedBlob !== blob;
             this.lastPastedBlob = blob;
@@ -1574,14 +1576,31 @@ class CADEngine {
             const imgData = offscreenCtx.getImageData(0, 0, w, h);
             const dd = imgData.data;
 
-            // ===== 第一阶段：Otsu 自适应二值化 + 形态学去噪 =====
-            const histogram = new Array(256).fill(0);
+            // ===== 第一阶段：Otsu 自适应二值化与直方图对比度拉伸 =====
             const grayValues = new Uint8Array(w * h);
+            let minG = 255, maxG = 0;
             for (let i = 0; i < dd.length; i += 4) {
                 const gray = Math.round(0.299 * dd[i] + 0.587 * dd[i+1] + 0.114 * dd[i+2]);
                 grayValues[i / 4] = gray;
-                histogram[gray]++;
+                if (gray < minG) minG = gray;
+                if (gray > maxG) maxG = gray;
             }
+
+            // 对比度自适应拉伸归一化，最大化黑白边缘灰度动态范围
+            const histogram = new Array(256).fill(0);
+            if (maxG > minG) {
+                const range = maxG - minG;
+                for (let i = 0; i < grayValues.length; i++) {
+                    const stretched = Math.round((grayValues[i] - minG) / range * 255);
+                    grayValues[i] = stretched;
+                    histogram[stretched]++;
+                }
+            } else {
+                for (let i = 0; i < grayValues.length; i++) {
+                    histogram[grayValues[i]]++;
+                }
+            }
+
             const totalPixels = w * h;
             let graySum = 0;
             for (let t = 0; t < 256; t++) graySum += t * histogram[t];
@@ -2031,6 +2050,187 @@ class CADEngine {
             this.showToast('图纸矢量化与重构过程中发生未知错误！', 'error');
         }
     }
+
+    // --- 7h. Gemini Vision API 智能识别重构引擎 (V3.5) ---
+    async vectorizeImageWithAI(blob, apiKey) {
+        this.showToast('正在发送图纸给 Gemini AI 大模型分析...', 'loading');
+        document.getElementById('status-activity').innerText = 'AI 大模型进行图纸空间结构分析中...';
+
+        try {
+            // 🌟 自动切换到白图纸主题，获得最佳对比度
+            this.theme = 'light';
+            document.body.classList.add('light-theme');
+
+            const result = await this.callGeminiVision(blob, apiKey);
+            if (!result || (!result.walls && !result.rooms)) {
+                throw new Error('大模型未能识别出有效的墙体或房间结构。');
+            }
+
+            this.showToast('AI 分析完成，正在进行 CAD 矢量对齐与绘制...', 'loading');
+
+            const finalWorldShapes = [];
+            const wallProps = Object.assign({}, this.defaultProperties, { stroke: 'wall', strokeWidth: 10, strokeStyle: 'solid' });
+            const blockProps = Object.assign({}, this.defaultProperties, { stroke: 'furniture', strokeWidth: 1.5, strokeStyle: 'solid' });
+            const dimProps = { stroke: 'dimension', strokeWidth: 1.5 };
+
+            // 1. 确定边界（Gemini 坐标映射是 0-800 X, 0-800 Y）
+            let minX = 0, maxX = 800, minY = 0, maxY = 800;
+            const bW = maxX - minX, bH = maxY - minY;
+            const cxB = (minX + maxX) / 2, cyB = (minY + maxY) / 2;
+            const wCtr = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
+            
+            // AI 坐标映射到 CAD 物理空间
+            const toW = (px, py) => ({ 
+                x: wCtr.x + (px - cxB), 
+                y: wCtr.y + (py - cyB) 
+            });
+
+            // 2. 绘制墙线 (walls)
+            let wallCount = 0;
+            if (result.walls && Array.isArray(result.walls)) {
+                result.walls.forEach(w => {
+                    const p1 = toW(w.x1, w.y1), p2 = toW(w.x2, w.y2);
+                    finalWorldShapes.push(new LineShape(p1.x, p1.y, p2.x, p2.y, this.activeLayer, wallProps));
+                    wallCount++;
+                });
+            }
+
+            // 3. 绘制门/窗 (doors / windows)
+            let doorCount = 0, windowCount = 0;
+            if (result.doors && Array.isArray(result.doors)) {
+                result.doors.forEach(d => {
+                    const center = toW(d.cx, d.cy);
+                    finalWorldShapes.push(new BlockShape('door', center.x, center.y, d.w || 60, d.h || 60, d.angle || 0, this.activeLayer, blockProps));
+                    doorCount++;
+                });
+            }
+            if (result.windows && Array.isArray(result.windows)) {
+                result.windows.forEach(w => {
+                    const center = toW(w.cx, w.cy);
+                    finalWorldShapes.push(new BlockShape('window', center.x, center.y, w.w || 80, w.h || 20, w.angle || 0, this.activeLayer, blockProps));
+                    windowCount++;
+                });
+            }
+
+            // 4. 绘制房间标注 (rooms)
+            let roomCount = 0;
+            const roomsList = [];
+            if (result.rooms && Array.isArray(result.rooms)) {
+                result.rooms.forEach(r => {
+                    const center = toW(r.cx, r.cy);
+                    finalWorldShapes.push(new TextShape(center.x - r.name.length * 7, center.y, r.name, this.activeLayer, { stroke: 'text' }));
+                    roomsList.push(r.name);
+                    roomCount++;
+                });
+            }
+
+            // 5. 绘制边界尺寸标注
+            finalWorldShapes.push(new DimShape(wCtr.x + 400, wCtr.y - 400, wCtr.x - 400, wCtr.y - 400, 'Dimensions', dimProps));
+            finalWorldShapes.push(new DimShape(wCtr.x - 400, wCtr.y + 400, wCtr.x + 400, wCtr.y + 400, 'Dimensions', dimProps));
+            finalWorldShapes.push(new DimShape(wCtr.x - 400, wCtr.y - 400, wCtr.x - 400, wCtr.y + 400, 'Dimensions', dimProps));
+            finalWorldShapes.push(new DimShape(wCtr.x + 400, wCtr.y + 400, wCtr.x + 400, wCtr.y - 400, 'Dimensions', dimProps));
+
+            // 6. 绘制指北针
+            finalWorldShapes.push(new BlockShape('compass', wCtr.x + 450, wCtr.y - 420, 45, 45, 0, this.activeLayer, blockProps));
+
+            // 推入并重绘
+            this.shapes = finalWorldShapes;
+            this.zoom = 0.65;
+            this.panX = this.canvas.width / 2 - wCtr.x * this.zoom;
+            this.panY = this.canvas.height / 2 - wCtr.y * this.zoom;
+            document.getElementById('zoom-factor').innerText = Math.round(this.zoom * 100) + '%';
+
+            this.saveState();
+            this.render();
+
+            let successMsg = `🎉 AI 智能重构成功！识别墙线 ${wallCount} 段`;
+            const blocksFound = [];
+            if (doorCount > 0) blocksFound.push(`门x${doorCount}`);
+            if (windowCount > 0) blocksFound.push(`窗x${windowCount}`);
+            if (roomCount > 0) blocksFound.push(`房间x${roomCount}`);
+            if (blocksFound.length > 0) successMsg += `，已套用大模型检测到的结构：${blocksFound.join('、')}`;
+            this.showToast(successMsg, 'success');
+            document.getElementById('status-activity').innerText = `AI 图纸智能重构成功！已导入 ${wallCount} 墙线及标准门窗房间块`;
+
+        } catch (err) {
+            console.error(err);
+            this.showToast(`AI 识别重构发生错误: ${err.message}`, 'error');
+            document.getElementById('status-activity').innerText = 'AI 识别重构失败！';
+        }
+    }
+
+    async callGeminiVision(blob, apiKey) {
+        const fileReader = new FileReader();
+        fileReader.readAsDataURL(blob);
+        await new Promise(resolve => fileReader.onloadend = resolve);
+        const base64Data = fileReader.result.split(',')[1];
+        const mimeType = blob.type;
+
+        const prompt = `你是一个专业的建筑图纸数字化大师。请分析这张户型图纸截图，提取出其核心的建筑结构，并返回一个 JSON 对象。
+坐标系范围为 X: 0 到 800, Y: 0 到 800（原点在左上角）。请把所有提取出的物体映射到这个坐标系中。
+
+返回的 JSON 必须严格符合以下格式，不要包含任何 markdown 标记、\`\`\`json 标记或多余的文字：
+{
+  "walls": [
+    {"x1": 100, "y1": 100, "x2": 400, "y2": 100}
+  ],
+  "doors": [
+    {"cx": 120, "cy": 150, "w": 60, "h": 60, "angle": 0}
+  ],
+  "windows": [
+    {"cx": 300, "cy": 100, "w": 80, "h": 20, "angle": 0}
+  ],
+  "rooms": [
+    {"cx": 250, "cy": 250, "name": "客厅"}
+  ]
+}
+
+注意：
+1. walls 表示所有的墙线（即轴线），尽量合并成长直线段，忽略彩色填充细节。
+2. doors 表示单开门，它的 w 和 h 是大小，angle 是弧度值。
+3. windows 表示窗户，w 表示窗宽，h 表示窗厚，angle 是角弧度。
+4. rooms 表示封闭房间的标注名称，请提供其中心坐标 cx, cy 以及名称。
+5. 务必提取完整的所有墙线，确保空间相对位置合理。`;
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const payload = {
+            contents: [
+                {
+                    parts: [
+                        { text: prompt },
+                        {
+                            inlineData: {
+                                mimeType: mimeType,
+                                data: base64Data
+                            }
+                        }
+                    ]
+                }
+            ],
+            generationConfig: {
+                responseMimeType: "application/json"
+            }
+        };
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Google API returned status ${res.status}: ${errText}`);
+        }
+
+        const data = await res.json();
+        if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content || !data.candidates[0].content.parts || data.candidates[0].content.parts.length === 0) {
+            throw new Error("Gemini AI 未能生成任何回复。请检查您的 API Key 或网络状况。");
+        }
+        const text = data.candidates[0].content.parts[0].text;
+        return JSON.parse(text.trim());
+    }
+
     // --- Premium 1:1 Floor Plan Reconstruction Template Loader ---
     load1to1Template() {
         this.showToast('正在为您一比一还原高清晰度 1:1 户型矢量图纸...', 'loading');
@@ -2827,6 +3027,34 @@ document.addEventListener('DOMContentLoaded', () => {
         btnReVectorize.addEventListener('click', () => {
             if (engine.lastPastedBlob) {
                 engine.vectorizeImage(engine.lastPastedBlob);
+            } else {
+                engine.showToast('请先使用 Ctrl+V 粘贴一张户型图！', 'error');
+            }
+        });
+    }
+
+    // Gemini AI Panel Event Listeners (V3.5)
+    const aiKeyInput = document.getElementById('ai-key');
+    if (aiKeyInput) {
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) {
+            aiKeyInput.value = savedKey;
+        }
+        aiKeyInput.addEventListener('change', () => {
+            localStorage.setItem('gemini_api_key', aiKeyInput.value.trim());
+        });
+    }
+
+    const btnAiReconstruct = document.getElementById('btn-ai-reconstruct');
+    if (btnAiReconstruct) {
+        btnAiReconstruct.addEventListener('click', () => {
+            const apiKey = aiKeyInput ? aiKeyInput.value.trim() : '';
+            if (!apiKey) {
+                engine.showToast('请输入您的 Gemini API Key！', 'error');
+                return;
+            }
+            if (engine.lastPastedBlob) {
+                engine.vectorizeImageWithAI(engine.lastPastedBlob, apiKey);
             } else {
                 engine.showToast('请先使用 Ctrl+V 粘贴一张户型图！', 'error');
             }
