@@ -395,6 +395,8 @@ class CADEngine {
         this.panY = 0;
         this.minZoom = 0.05;
         this.maxZoom = 50.0;
+        this.vectorizeCenter = null;
+        this.vectorizeImageCenter = null;
         
         // 核心绘图数据
         this.shapes = [];
@@ -1946,8 +1948,14 @@ class CADEngine {
 
             const bW = allMaxX - allMinX, bH = allMaxY - allMinY;
             const cxB = (allMinX + allMaxX) / 2, cyB = (allMinY + allMaxY) / 2;
-            const wCtr = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
-            const toW = (px, py) => ({ x: wCtr.x + (px - cxB), y: wCtr.y + (py - cyB) });
+            if (isNewImage || !this.vectorizeCenter) {
+                this.vectorizeCenter = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
+                this.vectorizeImageCenter = { x: cxB, y: cyB };
+            }
+            const wCtr = this.vectorizeCenter;
+            const useCxB = this.vectorizeImageCenter.x;
+            const useCyB = this.vectorizeImageCenter.y;
+            const toW = (px, py) => ({ x: wCtr.x + (px - useCxB), y: wCtr.y + (py - useCyB) });
 
             // 输出墙体
             let wallCount = 0;
@@ -2022,7 +2030,7 @@ class CADEngine {
             // 推入画布
             this.shapes = finalWorldShapes;
 
-            if (bW > 10 && bH > 10) {
+            if (isNewImage && bW > 10 && bH > 10) {
                 const scaleX = (this.canvas.width * 0.72) / bW;
                 const scaleY = (this.canvas.height * 0.72) / bH;
                 this.zoom = Math.max(0.1, Math.min(4.0, Math.min(scaleX, scaleY)));
@@ -2243,6 +2251,8 @@ class CADEngine {
             // 2. 清空画布
             this.shapes = [];
             this.selectedShape = null;
+            this.vectorizeCenter = null;
+            this.vectorizeImageCenter = null;
 
             // 属性定义
             const wallProps = { stroke: 'wall', strokeWidth: 10, strokeStyle: 'solid' };
@@ -2535,6 +2545,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-clear-confirm').addEventListener('click', () => {
         engine.shapes = [];
         engine.selectedShape = null;
+        engine.vectorizeCenter = null;
+        engine.vectorizeImageCenter = null;
         engine.drawingStartPoint = null;
         engine.panX = engine.canvas.width / 2;
         engine.panY = engine.canvas.height / 2;
