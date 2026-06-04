@@ -481,8 +481,8 @@ class CADEngine {
         });
 
         // 初始将世界原点 (0,0) 置于画布中心
-        this.panX = this.canvas.width / 2;
-        this.panY = this.canvas.height / 2;
+        this.panX = this.canvas.clientWidth / 2;
+        this.panY = this.canvas.clientHeight / 2;
     }
 
     resizeCanvas() {
@@ -1019,7 +1019,7 @@ class CADEngine {
     render() {
         // 清空画布并绘制背景色
         this.ctx.fillStyle = this.theme === 'light' ? '#ffffff' : '#0d0e15';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
 
         // 7a. 在最底层绘制无级网格
         this.drawInfiniteGrid();
@@ -1053,8 +1053,8 @@ class CADEngine {
 
     // --- 7a. 核心算法：绘制无限动态辅助网格 ---
     drawInfiniteGrid() {
-        const width = this.canvas.width;
-        const height = this.canvas.height;
+        const width = this.canvas.clientWidth;
+        const height = this.canvas.clientHeight;
         const ctx = this.ctx;
 
         // 根据当前的 zoom 来计算网格密度（防止缩放过小时网格过密，缩放过大时网格过疏）
@@ -1949,7 +1949,7 @@ class CADEngine {
             const bW = allMaxX - allMinX, bH = allMaxY - allMinY;
             const cxB = (allMinX + allMaxX) / 2, cyB = (allMinY + allMaxY) / 2;
             if (isNewImage || !this.vectorizeCenter) {
-                this.vectorizeCenter = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
+                this.vectorizeCenter = this.screenToWorld(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2);
                 this.vectorizeImageCenter = { x: cxB, y: cyB };
             }
             const wCtr = this.vectorizeCenter;
@@ -2031,11 +2031,11 @@ class CADEngine {
             this.shapes = finalWorldShapes;
 
             if (isNewImage && bW > 10 && bH > 10) {
-                const scaleX = (this.canvas.width * 0.72) / bW;
-                const scaleY = (this.canvas.height * 0.72) / bH;
+                const scaleX = (this.canvas.clientWidth * 0.72) / bW;
+                const scaleY = (this.canvas.clientHeight * 0.72) / bH;
                 this.zoom = Math.max(0.1, Math.min(4.0, Math.min(scaleX, scaleY)));
-                this.panX = this.canvas.width / 2 - wCtr.x * this.zoom;
-                this.panY = this.canvas.height / 2 - wCtr.y * this.zoom;
+                this.panX = this.canvas.clientWidth / 2 - wCtr.x * this.zoom;
+                this.panY = this.canvas.clientHeight / 2 - wCtr.y * this.zoom;
                 document.getElementById('zoom-factor').innerText = Math.round(this.zoom * 100) + '%';
             }
 
@@ -2085,7 +2085,7 @@ class CADEngine {
             let minX = 0, maxX = 800, minY = 0, maxY = 800;
             const bW = maxX - minX, bH = maxY - minY;
             const cxB = (minX + maxX) / 2, cyB = (minY + maxY) / 2;
-            const wCtr = this.screenToWorld(this.canvas.width / 2, this.canvas.height / 2);
+            const wCtr = this.screenToWorld(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2);
             
             // AI 坐标映射到 CAD 物理空间
             const toW = (px, py) => ({ 
@@ -2144,8 +2144,8 @@ class CADEngine {
             // 推入并重绘
             this.shapes = finalWorldShapes;
             this.zoom = 0.65;
-            this.panX = this.canvas.width / 2 - wCtr.x * this.zoom;
-            this.panY = this.canvas.height / 2 - wCtr.y * this.zoom;
+            this.panX = this.canvas.clientWidth / 2 - wCtr.x * this.zoom;
+            this.panY = this.canvas.clientHeight / 2 - wCtr.y * this.zoom;
             document.getElementById('zoom-factor').innerText = Math.round(this.zoom * 100) + '%';
 
             this.saveState();
@@ -2368,11 +2368,11 @@ class CADEngine {
             this.shapes = newShapes;
 
             // 9. 视口最佳缩放与居中对齐，留出 25% 边距
-            const scaleX = (this.canvas.width * 0.72) / 600;
-            const scaleY = (this.canvas.height * 0.72) / 850;
+            const scaleX = (this.canvas.clientWidth * 0.72) / 600;
+            const scaleY = (this.canvas.clientHeight * 0.72) / 850;
             this.zoom = Math.max(0.2, Math.min(3.0, Math.min(scaleX, scaleY)));
-            this.panX = this.canvas.width / 2 - wCenter.x * this.zoom;
-            this.panY = this.canvas.height / 2 - wCenter.y * this.zoom;
+            this.panX = this.canvas.clientWidth / 2 - wCenter.x * this.zoom;
+            this.panY = this.canvas.clientHeight / 2 - wCenter.y * this.zoom;
             document.getElementById('zoom-factor').innerText = Math.round(this.zoom * 100) + '%';
 
             // 10. 保存历史状态并重新渲染
@@ -2548,8 +2548,8 @@ document.addEventListener('DOMContentLoaded', () => {
         engine.vectorizeCenter = null;
         engine.vectorizeImageCenter = null;
         engine.drawingStartPoint = null;
-        engine.panX = engine.canvas.width / 2;
-        engine.panY = engine.canvas.height / 2;
+        engine.panX = engine.canvas.clientWidth / 2;
+        engine.panY = engine.canvas.clientHeight / 2;
         engine.zoom = 1.0;
         engine.saveState();
         resetInspectorToDefault();
@@ -2769,6 +2769,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 2. 将引擎里所有图形渲染到导出 Canvas 上
         exportCtx.save();
+        const dpr = window.devicePixelRatio || 1;
+        exportCtx.scale(dpr, dpr);
         // 处理视口平移和缩放比例
         exportCtx.translate(engine.panX, engine.panY);
         exportCtx.scale(engine.zoom, engine.zoom);
