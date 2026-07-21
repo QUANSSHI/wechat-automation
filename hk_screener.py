@@ -621,8 +621,8 @@ with tab1:
                 """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 📊 当日港股资金集中度热力图 (资金规模 vs 涨跌幅)")
-    st.markdown("<p style='font-size:0.9rem; color:#a0aec0;'>块大小代表 <b>当日成交额</b>（反映资金集中度），颜色深浅代表 <b>今日涨跌幅</b>（绿色上涨，红色下跌）。鼠标悬停可查看主力资金净流入及最新股价。</p>", unsafe_allow_html=True)
+    st.markdown("### 📊 当日港股资金集中度矩阵图 (资金规模 & 涨跌分布)")
+    st.markdown("<p style='font-size:0.9rem; color:#a0aec0;'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看主力资金净流入、最新股价及成交额详情。</p>", unsafe_allow_html=True)
     render_heatmap()
 
     st.markdown("---")
