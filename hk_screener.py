@@ -369,21 +369,21 @@ def render_heatmap():
         if not code or not turnover or turnover <= 0 or change is None:
             continue
             
-        # 根据涨跌幅决定颜色 (Bloomberg 风格渐变)
+        # 根据涨跌幅决定颜色 (港股/A股传统：红涨绿跌，使用高对比度富色调以确保白字清晰)
         if change > 4.0:
-            color = "#047857" # 深绿
-        elif change > 1.5:
-            color = "#10b981" # 绿
-        elif change > 0.0:
-            color = "#6ee7b7" # 浅绿
-        elif change < -4.0:
             color = "#b91c1c" # 深红
+        elif change > 1.5:
+            color = "#dc2626" # 红色
+        elif change > 0.0:
+            color = "#ef4444" # 浅红色
+        elif change < -4.0:
+            color = "#064e3b" # 深绿
         elif change < -1.5:
-            color = "#ef4444" # 红
+            color = "#0f766e" # 绿色
         elif change < 0.0:
-            color = "#fca5a5" # 浅红
+            color = "#14b8a6" # 浅绿色
         else:
-            color = "#4b5563" # 灰色
+            color = "#475569" # 灰色 (石板灰)
             
         chart_data.append({
             "name": f"{name}\n({code})\n{change:+.2f}%",
@@ -422,6 +422,14 @@ def render_heatmap():
             var option = {{
                 tooltip: {{
                     trigger: 'item',
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)', // 深 slate 蓝背景
+                    borderColor: 'rgba(255, 255, 255, 0.15)',
+                    borderWidth: 1,
+                    padding: [8, 12],
+                    textStyle: {{
+                        color: '#fff',
+                        fontSize: 12
+                    }},
                     formatter: function (info) {{
                         var val = info.value;
                         var turnover = (val[0] / 100000000).toFixed(2);
@@ -430,12 +438,16 @@ def render_heatmap():
                         var price = val[3];
                         var sign = change >= 0 ? '+' : '';
                         
-                        return '<div style="font-weight:bold;font-size:14px;margin-bottom:5px;color:#fff;">' + info.name.split('\\n')[0] + ' (' + info.name.split('\\n')[1] + ')</div>' +
-                               '<div style="font-size:12px;color:#a0aec0;line-height:1.6;">' +
+                        // 红涨绿跌配色应用于悬浮窗
+                        var changeColor = change >= 0 ? '#f87171' : '#2dd4bf';
+                        var inflowColor = inflow >= 0 ? '#f87171' : '#2dd4bf';
+                        
+                        return '<div style="font-weight:bold;font-size:14px;margin-bottom:6px;color:#fff;">' + info.name.split('\\n')[0] + ' (' + info.name.split('\\n')[1] + ')</div>' +
+                               '<div style="line-height:1.7;">' +
                                '最新价: <span style="font-weight:bold;color:#fff;">' + price + ' HKD</span><br>' +
-                               '涨跌幅: <span style="font-weight:bold;color:' + (change >= 0 ? '#10b981' : '#ef4444') + ';">' + sign + change + '%</span><br>' +
+                               '涨跌幅: <span style="font-weight:bold;color:' + changeColor + ';">' + sign + change + '%</span><br>' +
                                '成交额: <span style="color:#fff;">' + turnover + ' 亿 HKD</span><br>' +
-                               '主力净流入: <span style="font-weight:bold;color:' + (inflow >= 0 ? '#10b981' : '#ef4444') + ';">' + sign + inflow + ' 亿 HKD</span>' +
+                               '主力净流入: <span style="font-weight:bold;color:' + inflowColor + ';">' + sign + inflow + ' 亿 HKD</span>' +
                                '</div>';
                     }}
                 }},
@@ -448,21 +460,31 @@ def render_heatmap():
                     breadcrumb: {{ show: false }},
                     label: {{
                         show: true,
-                        formatter: '{{b}}',
+                        // 智能截断，小卡片只显示简称以防挤在一起
+                        formatter: function (params) {{
+                            var parts = params.name.split('\\n');
+                            if (params.value[0] < 200000000) {{ // 成交额小于 2 亿 HKD
+                                return parts[0]; 
+                            }}
+                            return params.name;
+                        }},
                         fontSize: 10,
                         color: '#fff',
-                        fontWeight: 'bold'
+                        fontWeight: 'bold',
+                        lineHeight: 14
                     }},
                     itemStyle: {{
-                        borderWidth: 1,
-                        borderColor: 'rgba(9, 10, 15, 0.6)',
-                        gapWidth: 1
+                        borderWidth: 1.5,
+                        borderColor: '#0f172a', // 深色边线划分，界限分明
+                        gapWidth: 1.5,
+                        borderRadius: 4 // 轻微圆角，更加精致
                     }},
                     levels: [
                         {{
                             itemStyle: {{
-                                borderWidth: 1,
-                                gapWidth: 1
+                                borderWidth: 1.5,
+                                gapWidth: 1.5,
+                                borderRadius: 4
                             }}
                         }}
                     ]
