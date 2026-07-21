@@ -374,7 +374,7 @@ with tab2:
                         q,
                         sortField=sort_field,
                         sortAsc=sort_asc,
-                        size=500
+                        size=250
                     )
                     if response and 'quotes' in response and len(response['quotes']) > 0:
                         df = pd.DataFrame(response['quotes'])
