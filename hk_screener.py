@@ -323,6 +323,162 @@ def display_screened_results(df_res):
         sector_counts = df_display['行业'].value_counts()
         st.bar_chart(sector_counts, use_container_width=True)
 
+# ==================== 资金流向大盘热力图 ====================
+@st.cache_data(ttl=180)  # 3分钟缓存
+def fetch_capital_heatmap_data():
+    url = "https://push2.eastmoney.com/api/qt/clist/get"
+    params = {
+        "pn": 1,
+        "pz": 80,  # 最活跃的前 80 只股票
+        "po": 1,
+        "np": 1,
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": 2,
+        "invt": 2,
+        "fid": "f6",  # 按照成交额 (f6) 排序，反映资金集中度
+        "fs": "m:128+t:3,m:128+t:4",
+        "fields": "f12,f14,f2,f3,f6,f62,f184"
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124"
+    }
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=5)
+        res_json = response.json()
+        diff = res_json.get('data', {}).get('diff', [])
+        return diff
+    except Exception:
+        return []
+
+def render_heatmap():
+    raw_data = fetch_capital_heatmap_data()
+    if not raw_data:
+        st.warning("暂未获取到当日大盘成交数据，无法渲染热力图。")
+        return
+        
+    chart_data = []
+    for item in raw_data:
+        code = item.get('f12', '')
+        name = item.get('f14', '未知')
+        price = item.get('f2', 0.0)
+        change = item.get('f3', 0.0)
+        turnover = item.get('f6', 0.0)
+        net_inflow = item.get('f62', 0.0)
+        
+        # 过滤掉成交额不合法的数据
+        if not code or not turnover or turnover <= 0 or change is None:
+            continue
+            
+        # 根据涨跌幅决定颜色 (Bloomberg 风格渐变)
+        if change > 4.0:
+            color = "#047857" # 深绿
+        elif change > 1.5:
+            color = "#10b981" # 绿
+        elif change > 0.0:
+            color = "#6ee7b7" # 浅绿
+        elif change < -4.0:
+            color = "#b91c1c" # 深红
+        elif change < -1.5:
+            color = "#ef4444" # 红
+        elif change < 0.0:
+            color = "#fca5a5" # 浅红
+        else:
+            color = "#4b5563" # 灰色
+            
+        chart_data.append({
+            "name": f"{name}\n({code})\n{change:+.2f}%",
+            "value": [turnover, change, net_inflow, price],
+            "itemStyle": {
+                "color": color
+            }
+        })
+        
+    import streamlit.components.v1 as components
+    import json
+    chart_data_json = json.dumps(chart_data, ensure_ascii=False)
+    
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+        <style>
+            html, body, #chart-container {{
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+                background-color: transparent;
+            }}
+        </style>
+    </head>
+    <body>
+        <div id="chart-container"></div>
+        <script>
+            var chartDom = document.getElementById('chart-container');
+            var myChart = echarts.init(chartDom, null, {{renderer: 'canvas'}});
+            var option = {{
+                tooltip: {{
+                    trigger: 'item',
+                    formatter: function (info) {{
+                        var val = info.value;
+                        var turnover = (val[0] / 100000000).toFixed(2);
+                        var change = val[1];
+                        var inflow = (val[2] / 100000000).toFixed(2);
+                        var price = val[3];
+                        var sign = change >= 0 ? '+' : '';
+                        
+                        return '<div style="font-weight:bold;font-size:14px;margin-bottom:5px;color:#fff;">' + info.name.split('\\n')[0] + ' (' + info.name.split('\\n')[1] + ')</div>' +
+                               '<div style="font-size:12px;color:#a0aec0;line-height:1.6;">' +
+                               '最新价: <span style="font-weight:bold;color:#fff;">' + price + ' HKD</span><br>' +
+                               '涨跌幅: <span style="font-weight:bold;color:' + (change >= 0 ? '#10b981' : '#ef4444') + ';">' + sign + change + '%</span><br>' +
+                               '成交额: <span style="color:#fff;">' + turnover + ' 亿 HKD</span><br>' +
+                               '主力净流入: <span style="font-weight:bold;color:' + (inflow >= 0 ? '#10b981' : '#ef4444') + ';">' + sign + inflow + ' 亿 HKD</span>' +
+                               '</div>';
+                    }}
+                }},
+                series: [{{
+                    type: 'treemap',
+                    data: {chart_data_json},
+                    leafDepth: 1,
+                    roam: false,
+                    nodeClick: false,
+                    breadcrumb: {{ show: false }},
+                    label: {{
+                        show: true,
+                        formatter: '{{b}}',
+                        fontSize: 10,
+                        color: '#fff',
+                        fontWeight: 'bold'
+                    }},
+                    itemStyle: {{
+                        borderWidth: 1,
+                        borderColor: 'rgba(9, 10, 15, 0.6)',
+                        gapWidth: 1
+                    }},
+                    levels: [
+                        {{
+                            itemStyle: {{
+                                borderWidth: 1,
+                                gapWidth: 1
+                            }}
+                        }}
+                    ]
+                }}]
+            }};
+            myChart.setOption(option);
+            window.addEventListener('resize', function() {{
+                myChart.resize();
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    
+    components.html(html_code, height=450, scrolling=False)
+
 # ==================== UI 标题头部 ====================
 col_title, col_logo = st.columns([5, 1])
 with col_title:
@@ -405,6 +561,11 @@ with tab1:
                     <div class="metric-delta-pos">--</div>
                 </div>
                 """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 📊 当日港股资金集中度热力图 (资金规模 vs 涨跌幅)")
+    st.markdown("<p style='font-size:0.9rem; color:#a0aec0;'>块大小代表 <b>当日成交额</b>（反映资金集中度），颜色深浅代表 <b>今日涨跌幅</b>（绿色上涨，红色下跌）。鼠标悬停可查看主力资金净流入及最新股价。</p>", unsafe_allow_html=True)
+    render_heatmap()
 
     st.markdown("---")
     st.markdown("### 💡 快捷量化策略模板 (一键应用)")
