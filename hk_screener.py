@@ -133,6 +133,18 @@ if "selected_sectors" not in st.session_state:
 if "last_screened_df" not in st.session_state:
     st.session_state.last_screened_df = None
 
+def reset_filters():
+    st.session_state.min_mcap = 0
+    st.session_state.max_mcap = 0
+    st.session_state.max_pe = 50
+    st.session_state.min_volume = 0
+    st.session_state.min_price = 0.0
+    st.session_state.max_price = 0.0
+    st.session_state.min_div_yield = 0.0
+    st.session_state.min_change = -50.0
+    st.session_state.selected_sectors = []
+    st.session_state.last_screened_df = None
+
 # ==================== 策略模板填充器 ====================
 def apply_template(template_name):
     if template_name == "high_div":
@@ -201,18 +213,7 @@ with col_title:
 st.sidebar.markdown("### 🔍 多因子筛选器")
 
 # 侧边栏重置按钮
-if st.sidebar.button("🧹 重置筛选条件", type="secondary"):
-    st.session_state.min_mcap = 0
-    st.session_state.max_mcap = 0
-    st.session_state.max_pe = 50
-    st.session_state.min_volume = 0
-    st.session_state.min_price = 0.0
-    st.session_state.max_price = 0.0
-    st.session_state.min_div_yield = 0.0
-    st.session_state.min_change = -50.0
-    st.session_state.selected_sectors = []
-    st.session_state.last_screened_df = None
-    st.rerun()
+st.sidebar.button("🧹 重置筛选条件", type="secondary", on_click=reset_filters)
 
 # 侧边栏具体过滤输入绑定
 st.sidebar.markdown("---")
@@ -298,8 +299,7 @@ with tab1:
             </div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("应用 “高股息蓝筹龙头” 策略", key="btn_high_div"):
-            apply_template("high_div")
+        if st.button("应用 “高股息蓝筹龙头” 策略", key="btn_high_div", on_click=apply_template, args=("high_div",)):
             st.success("「高股息蓝筹龙头」策略参数已填充，请切往下一标签页执行筛选！")
             
     with col_strat2:
@@ -311,8 +311,7 @@ with tab1:
             </div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("应用 “低估值成长先锋” 策略", key="btn_growth"):
-            apply_template("undervalued_growth")
+        if st.button("应用 “低估值成长先锋” 策略", key="btn_growth", on_click=apply_template, args=("undervalued_growth",)):
             st.success("「低估值成长先锋」策略参数已填充，请切往下一标签页执行筛选！")
             
     with col_strat3:
@@ -324,8 +323,7 @@ with tab1:
             </div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("应用 “小市值黑马探测” 策略", key="btn_microcap"):
-            apply_template("microcap_alpha")
+        if st.button("应用 “小市值黑马探测” 策略", key="btn_microcap", on_click=apply_template, args=("microcap_alpha",)):
             st.success("「小市值黑马探测」策略参数已填充，请切往下一标签页执行筛选！")
 
 # -------------------- TAB 2: 香港股权筛选终端 --------------------
