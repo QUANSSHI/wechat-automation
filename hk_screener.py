@@ -329,7 +329,7 @@ def fetch_capital_heatmap_data():
     url = "https://push2.eastmoney.com/api/qt/clist/get"
     params = {
         "pn": 1,
-        "pz": 80,  # 最活跃的前 80 只股票
+        "pz": 48,  # 最活跃的前 48 只股票 (在栅格中形成整齐的行数)
         "po": 1,
         "np": 1,
         "ut": "bd1d9ddb04089700cf9c27f6f7426281",
@@ -356,7 +356,7 @@ def render_heatmap():
         st.warning("暂未获取到当日大盘成交数据，无法渲染热力图。")
         return
         
-    chart_data = []
+    cards_html = []
     for item in raw_data:
         code = item.get('f12', '')
         name = item.get('f14', '未知')
@@ -365,141 +365,177 @@ def render_heatmap():
         turnover = item.get('f6', 0.0)
         net_inflow = item.get('f62', 0.0)
         
-        # 过滤掉成交额不合法的数据
-        if not code or not turnover or turnover <= 0 or change is None:
+        if not code or change is None:
             continue
             
-        # 根据涨跌幅决定颜色 (港股/A股传统：红涨绿跌，使用高对比度富色调以确保白字清晰)
+        # 根据涨跌幅决定颜色 (港股/A股传统：红涨绿跌，使用渐变强化立体感与视觉品味)
         if change > 4.0:
-            color = "#b91c1c" # 深红
+            bg_gradient = "linear-gradient(135deg, #ef4444, #991b1b)" # 强劲上涨
         elif change > 1.5:
-            color = "#dc2626" # 红色
+            bg_gradient = "linear-gradient(135deg, #f87171, #c2410c)" # 温和上涨
         elif change > 0.0:
-            color = "#ef4444" # 浅红色
+            bg_gradient = "linear-gradient(135deg, #fca5a5, #b91c1c)" # 微涨
         elif change < -4.0:
-            color = "#064e3b" # 深绿
+            bg_gradient = "linear-gradient(135deg, #10b981, #064e3b)" # 强劲下跌
         elif change < -1.5:
-            color = "#0f766e" # 绿色
+            bg_gradient = "linear-gradient(135deg, #34d399, #0f766e)" # 温和下跌
         elif change < 0.0:
-            color = "#14b8a6" # 浅绿色
+            bg_gradient = "linear-gradient(135deg, #6ee7b7, #14b8a6)" # 微跌
         else:
-            color = "#475569" # 灰色 (石板灰)
+            bg_gradient = "linear-gradient(135deg, #64748b, #475569)" # 平盘
             
-        chart_data.append({
-            "name": f"{name}\n({code})\n{change:+.2f}%",
-            "value": [turnover, change, net_inflow, price],
-            "itemStyle": {
-                "color": color
-            }
-        })
+        turnover_b = turnover / 1e8
+        net_inflow_b = net_inflow / 1e8
+        sign = "+" if change >= 0 else ""
         
-    import streamlit.components.v1 as components
-    import json
-    chart_data_json = json.dumps(chart_data, ensure_ascii=False)
+        # 针对 Tooltip 中的正负符号和颜色应用 CSS 类别
+        change_class = "up" if change >= 0 else "down"
+        inflow_class = "up" if net_inflow >= 0 else "down"
+        
+        card_html = f"""
+        <div class="card" style="background: {bg_gradient};">
+            <div class="card-name">{name}</div>
+            <div class="card-info">{code} | {sign}{change:.2f}%</div>
+            <div class="tooltip-box">
+                <div class="tooltip-title">{name} ({code})</div>
+                <div class="tooltip-row">最新价格: <strong>{price:.2f} HKD</strong></div>
+                <div class="tooltip-row">今日涨跌: <strong class="{change_class}">{sign}{change:.2f}%</strong></div>
+                <div class="tooltip-row">当日成交: <strong>{turnover_b:.2f} 亿 HKD</strong></div>
+                <div class="tooltip-row">主力净流入: <strong class="{inflow_class}">{net_inflow_b:+.2f} 亿 HKD</strong></div>
+            </div>
+        </div>
+        """
+        cards_html.append(card_html)
+        
+    all_cards = "\n".join(cards_html)
     
     html_code = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
-        <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
         <style>
-            html, body, #chart-container {{
-                width: 100%;
-                height: 100%;
+            html, body {{
                 margin: 0;
                 padding: 0;
-                overflow: hidden;
                 background-color: transparent;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                overflow-x: hidden;
+            }}
+            .grid-container {{
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+                gap: 8px;
+                padding: 8px 4px;
+            }}
+            .card {{
+                position: relative;
+                height: 60px;
+                border-radius: 6px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+                transition: transform 0.15s ease, box-shadow 0.15s ease;
+                user-select: none;
+                box-sizing: border-box;
+                padding: 4px;
+                color: #ffffff;
+            }}
+            .card:hover {{
+                transform: scale(1.06);
+                box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+                z-index: 10;
+            }}
+            .card-name {{
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 2px;
+                text-align: center;
+                width: 95%;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            }}
+            .card-info {{
+                font-size: 10px;
+                font-weight: 500;
+                opacity: 0.95;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            }}
+            .tooltip-box {{
+                visibility: hidden;
+                width: 180px;
+                background-color: rgba(15, 23, 42, 0.98);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                border-radius: 6px;
+                padding: 10px;
+                position: absolute;
+                z-index: 100;
+                bottom: 118%;
+                left: 50%;
+                margin-left: -90px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+                opacity: 0;
+                transition: opacity 0.15s ease;
+                pointer-events: none;
+                box-sizing: border-box;
+                color: #fff;
+            }}
+            .card:hover .tooltip-box {{
+                visibility: visible;
+                opacity: 1;
+            }}
+            .tooltip-title {{
+                font-weight: bold;
+                font-size: 13px;
+                border-bottom: 1px solid rgba(255,255,255,0.15);
+                padding-bottom: 4px;
+                margin-bottom: 6px;
+                text-align: left;
+            }}
+            .tooltip-row {{
+                font-size: 11px;
+                line-height: 1.6;
+                color: #cbd5e1;
+                text-align: left;
+            }}
+            .tooltip-row strong {{
+                color: #f8fafc;
+            }}
+            .tooltip-row strong.up {{
+                color: #f87171;
+            }}
+            .tooltip-row strong.down {{
+                color: #2dd4bf;
+            }}
+            
+            /* 悬浮框的小三角指示器 */
+            .tooltip-box::after {{
+                content: "";
+                position: absolute;
+                top: 100%;
+                left: 50%;
+                margin-left: -5px;
+                border-width: 5px;
+                border-style: solid;
+                border-color: rgba(15, 23, 42, 0.98) transparent transparent transparent;
             }}
         </style>
     </head>
     <body>
-        <div id="chart-container"></div>
-        <script>
-            var chartDom = document.getElementById('chart-container');
-            var myChart = echarts.init(chartDom, null, {{renderer: 'canvas'}});
-            var option = {{
-                tooltip: {{
-                    trigger: 'item',
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)', // 深 slate 蓝背景
-                    borderColor: 'rgba(255, 255, 255, 0.15)',
-                    borderWidth: 1,
-                    padding: [8, 12],
-                    textStyle: {{
-                        color: '#fff',
-                        fontSize: 12
-                    }},
-                    formatter: function (info) {{
-                        var val = info.value;
-                        var turnover = (val[0] / 100000000).toFixed(2);
-                        var change = val[1];
-                        var inflow = (val[2] / 100000000).toFixed(2);
-                        var price = val[3];
-                        var sign = change >= 0 ? '+' : '';
-                        
-                        // 红涨绿跌配色应用于悬浮窗
-                        var changeColor = change >= 0 ? '#f87171' : '#2dd4bf';
-                        var inflowColor = inflow >= 0 ? '#f87171' : '#2dd4bf';
-                        
-                        return '<div style="font-weight:bold;font-size:14px;margin-bottom:6px;color:#fff;">' + info.name.split('\\n')[0] + ' (' + info.name.split('\\n')[1] + ')</div>' +
-                               '<div style="line-height:1.7;">' +
-                               '最新价: <span style="font-weight:bold;color:#fff;">' + price + ' HKD</span><br>' +
-                               '涨跌幅: <span style="font-weight:bold;color:' + changeColor + ';">' + sign + change + '%</span><br>' +
-                               '成交额: <span style="color:#fff;">' + turnover + ' 亿 HKD</span><br>' +
-                               '主力净流入: <span style="font-weight:bold;color:' + inflowColor + ';">' + sign + inflow + ' 亿 HKD</span>' +
-                               '</div>';
-                    }}
-                }},
-                series: [{{
-                    type: 'treemap',
-                    data: {chart_data_json},
-                    leafDepth: 1,
-                    roam: false,
-                    nodeClick: false,
-                    breadcrumb: {{ show: false }},
-                    label: {{
-                        show: true,
-                        // 智能截断，小卡片只显示简称以防挤在一起
-                        formatter: function (params) {{
-                            var parts = params.name.split('\\n');
-                            if (params.value[0] < 200000000) {{ // 成交额小于 2 亿 HKD
-                                return parts[0]; 
-                            }}
-                            return params.name;
-                        }},
-                        fontSize: 10,
-                        color: '#fff',
-                        fontWeight: 'bold',
-                        lineHeight: 14
-                    }},
-                    itemStyle: {{
-                        borderWidth: 1.5,
-                        borderColor: '#0f172a', // 深色边线划分，界限分明
-                        gapWidth: 1.5,
-                        borderRadius: 4 // 轻微圆角，更加精致
-                    }},
-                    levels: [
-                        {{
-                            itemStyle: {{
-                                borderWidth: 1.5,
-                                gapWidth: 1.5,
-                                borderRadius: 4
-                            }}
-                        }}
-                    ]
-                }}]
-            }};
-            myChart.setOption(option);
-            window.addEventListener('resize', function() {{
-                myChart.resize();
-            }});
-        </script>
+        <div class="grid-container">
+            {all_cards}
+        </div>
     </body>
     </html>
     """
     
-    components.html(html_code, height=450, scrolling=False)
+    import streamlit.components.v1 as components
+    components.html(html_code, height=450, scrolling=True)
 
 # ==================== UI 标题头部 ====================
 col_title, col_logo = st.columns([5, 1])
