@@ -547,25 +547,33 @@ with tab4:
         
         if news_items:
             for item in news_items[:8]:  # 最多显示8条
-                title = item.get('title', '无标题')
-                link = item.get('link', '#')
-                publisher = item.get('publisher', '未知媒体')
-                pub_time_raw = item.get('providerPublishTime', 0)
-                pub_time = datetime.datetime.fromtimestamp(pub_time_raw).strftime('%Y-%m-%d %H:%M') if pub_time_raw else "未知时间"
-                related = item.get('relatedTickers', [])
+                content = item.get('content', item)
+                title = content.get('title', '无标题')
+                link = content.get('canonicalUrl', {}).get('url', '#') if isinstance(content.get('canonicalUrl'), dict) else content.get('link', '#')
+                publisher = content.get('provider', {}).get('displayName', '未知媒体') if isinstance(content.get('provider'), dict) else content.get('publisher', '未知媒体')
                 
-                st.markdown(f"""
-                <div class="premium-card">
-                    <div style="font-size:0.8rem; color:#a0aec0; margin-bottom:5px; display:flex; justify-content:space-between;">
-                        <span>📰 {publisher}</span>
-                        <span>⏱️ {pub_time}</span>
-                    </div>
-                    <a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:#3b82f6; font-size:1.0rem;">{title}</a>
-                    <div style="margin-top:8px;">
-                        {" ".join([f'<span style="background:rgba(99, 102, 241, 0.15); color:#a855f7; font-size:0.75rem; padding:2px 8px; border-radius:4px; margin-right:5px; font-weight:600;">{t}</span>' for t in related])}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                pub_time = "未知时间"
+                if 'pubDate' in content:
+                    pub_time_str = content.get('pubDate', '')
+                    if pub_time_str and 'T' in pub_time_str:
+                        pub_time = pub_time_str.replace('T', ' ').replace('Z', '')[:16]
+                elif 'providerPublishTime' in content:
+                    pub_time_raw = content.get('providerPublishTime', 0)
+                    if pub_time_raw:
+                        pub_time = datetime.datetime.fromtimestamp(pub_time_raw).strftime('%Y-%m-%d %H:%M')
+                
+                # 使用 st.html 渲染原生 HTML 卡片，避免 Markdown 语法和闭合标签产生冲突
+                card_html = f"""<div class="premium-card">
+<div style="font-size:0.8rem; color:#a0aec0; margin-bottom:5px; display:flex; justify-content:space-between;">
+<span>📰 {publisher}</span>
+<span>⏱️ {pub_time}</span>
+</div>
+<a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:#3b82f6; font-size:1.0rem; display:block; margin-bottom:8px;">{title}</a>
+<div>
+<span style="background:rgba(99, 102, 241, 0.15); color:#a855f7; font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:600;">{news_symbol}</span>
+</div>
+</div>"""
+                st.html(card_html)
         else:
             st.info(f"暂未获取到 {news_symbol} 的近期相关重大新闻。")
             
@@ -586,35 +594,56 @@ with tab4:
             for t_sym in screened_tickers:
                 t_news = fetch_stock_news(t_sym)
                 for item in t_news:
-                    uuid = item.get('uuid')
+                    uuid = item.get('uuid', item.get('id'))
                     if uuid not in seen_uuids:
                         seen_uuids.add(uuid)
+                        item['_associated_ticker'] = t_sym
                         aggregated_news.append(item)
             
-            # 按时间从新到旧排序
-            aggregated_news.sort(key=lambda x: x.get('providerPublishTime', 0), reverse=True)
+            # 健全的时间排序逻辑（支持 pubDate ISO 格式和 Unix 时间戳）
+            def get_sort_key(x):
+                c = x.get('content', x)
+                if 'pubDate' in c:
+                    try:
+                        val = c.get('pubDate', '')
+                        dt = datetime.datetime.fromisoformat(val.replace('Z', '+00:00'))
+                        return dt.timestamp()
+                    except:
+                        return 0
+                return c.get('providerPublishTime', 0)
+                
+            aggregated_news.sort(key=get_sort_key, reverse=True)
             
             if aggregated_news:
                 for item in aggregated_news[:10]:  # 显示前10条
-                    title = item.get('title', '无标题')
-                    link = item.get('link', '#')
-                    publisher = item.get('publisher', '未知媒体')
-                    pub_time_raw = item.get('providerPublishTime', 0)
-                    pub_time = datetime.datetime.fromtimestamp(pub_time_raw).strftime('%Y-%m-%d %H:%M') if pub_time_raw else "未知时间"
-                    related = item.get('relatedTickers', [])
+                    content = item.get('content', item)
+                    title = content.get('title', '无标题')
+                    link = content.get('canonicalUrl', {}).get('url', '#') if isinstance(content.get('canonicalUrl'), dict) else content.get('link', '#')
+                    publisher = content.get('provider', {}).get('displayName', '未知媒体') if isinstance(content.get('provider'), dict) else content.get('publisher', '未知媒体')
+                    associated_ticker = item.get('_associated_ticker', '港股')
                     
-                    st.markdown(f"""
-                    <div class="premium-card" style="border-left: 2px solid #ec4899;">
-                        <div style="font-size:0.8rem; color:#a0aec0; margin-bottom:5px; display:flex; justify-content:space-between;">
-                            <span>📰 {publisher}</span>
-                            <span>⏱️ {pub_time}</span>
-                        </div>
-                        <a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:#ec4899; font-size:1.0rem;">{title}</a>
-                        <div style="margin-top:8px;">
-                            {" ".join([f'<span style="background:rgba(236, 72, 153, 0.15); color:#ec4899; font-size:0.75rem; padding:2px 8px; border-radius:4px; margin-right:5px; font-weight:600;">{t}</span>' for t in related])}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    pub_time = "未知时间"
+                    if 'pubDate' in content:
+                        pub_time_str = content.get('pubDate', '')
+                        if pub_time_str and 'T' in pub_time_str:
+                            pub_time = pub_time_str.replace('T', ' ').replace('Z', '')[:16]
+                    elif 'providerPublishTime' in content:
+                        pub_time_raw = content.get('providerPublishTime', 0)
+                        if pub_time_raw:
+                            pub_time = datetime.datetime.fromtimestamp(pub_time_raw).strftime('%Y-%m-%d %H:%M')
+                    
+                    # 使用 st.html 渲染原生 HTML 卡片
+                    card_html = f"""<div class="premium-card" style="border-left: 2px solid #ec4899;">
+<div style="font-size:0.8rem; color:#a0aec0; margin-bottom:5px; display:flex; justify-content:space-between;">
+<span>📰 {publisher}</span>
+<span>⏱️ {pub_time}</span>
+</div>
+<a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:#ec4899; font-size:1.0rem; display:block; margin-bottom:8px;">{title}</a>
+<div>
+<span style="background:rgba(236, 72, 153, 0.15); color:#ec4899; font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:600;">{associated_ticker}</span>
+</div>
+</div>"""
+                    st.html(card_html)
             else:
                 st.info("所选股票近期暂无重大新闻报道。")
         else:
