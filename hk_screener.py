@@ -3,6 +3,7 @@ import yfinance as yf
 from yfinance import EquityQuery
 import pandas as pd
 import datetime
+import requests
 
 # ==================== 页面配置 ====================
 st.set_page_config(
@@ -134,6 +135,8 @@ if "last_screened_df" not in st.session_state:
     st.session_state.last_screened_df = None
 if "selected_symbol" not in st.session_state:
     st.session_state.selected_symbol = ""
+if "ggt_filter" not in st.session_state:
+    st.session_state.ggt_filter = "不限"
 
 def reset_filters():
     st.session_state.min_mcap = 0
@@ -146,6 +149,7 @@ def reset_filters():
     st.session_state.min_change = -50.0
     st.session_state.selected_sectors = []
     st.session_state.last_screened_df = None
+    st.session_state.ggt_filter = "不限"
 
 # ==================== 策略模板填充器 ====================
 def apply_template(template_name):
@@ -214,6 +218,111 @@ def fetch_stock_news(symbol):
     except Exception:
         return []
 
+# ==================== 港股通名单抓取 ====================
+@st.cache_data(ttl=86400)  # 24小时缓存
+def fetch_stock_connect_list():
+    url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHKStockData"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124"
+    }
+    symbols = set()
+    page = 1
+    while True:
+        params = {
+            "page": page,
+            "num": 80,
+            "sort": "symbol",
+            "asc": 1,
+            "node": "hgt_hk"
+        }
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=5)
+            data = response.json()
+            if not data or len(data) == 0:
+                break
+            new_added = 0
+            for item in data:
+                sym = item.get('symbol', '')
+                if sym:
+                    if len(sym) == 5 and sym.startswith('0'):
+                        formatted = f"{sym[1:]}.HK"
+                    else:
+                        formatted = f"{sym}.HK"
+                    if formatted not in symbols:
+                        symbols.add(formatted)
+                        new_added += 1
+            if new_added == 0:
+                break
+            page += 1
+        except Exception:
+            break
+    return list(symbols)
+
+# ==================== 筛选结果展示与格式化 ====================
+def display_screened_results(df_res):
+    display_cols = ['symbol', 'shortName', 'regularMarketPrice', 'intradaymarketcap',
+                    'peratio.lasttwelvemonths', 'dayvolume', 'percentchange',
+                    'forward_dividend_yield', 'sector']
+    existing_cols = [c for c in display_cols if c in df_res.columns]
+    df_display = df_res[existing_cols].copy()
+    
+    # 友好列名翻译与格式化
+    rename_dict = {}
+    if 'symbol' in df_display.columns: rename_dict['symbol'] = '股票代码'
+    if 'shortName' in df_display.columns: rename_dict['shortName'] = '股票简称'
+    if 'sector' in df_display.columns: rename_dict['sector'] = '行业'
+    
+    if 'regularMarketPrice' in df_display.columns:
+        df_display['价格(HKD)'] = df_display['regularMarketPrice'].round(2)
+        df_display.drop(columns=['regularMarketPrice'], inplace=True)
+    if 'intradaymarketcap' in df_display.columns:
+        df_display['市值(亿USD)'] = (df_display['intradaymarketcap'] / 1e8).round(2)
+        df_display.drop(columns=['intradaymarketcap'], inplace=True)
+    if 'peratio.lasttwelvemonths' in df_display.columns:
+        df_display['市盈率(PE)'] = df_display['peratio.lasttwelvemonths'].round(2)
+        df_display.drop(columns=['peratio.lasttwelvemonths'], inplace=True)
+    if 'dayvolume' in df_display.columns:
+        df_display['成交量(股)'] = df_display['dayvolume'].astype(int)
+        df_display.drop(columns=['dayvolume'], inplace=True)
+    if 'percentchange' in df_display.columns:
+        df_display['涨跌幅(%)'] = df_display['percentchange'].round(2)
+        df_display.drop(columns=['percentchange'], inplace=True)
+    if 'forward_dividend_yield' in df_display.columns:
+        df_display['股息收益率(%)'] = (df_display['forward_dividend_yield'] * 100).round(2)
+        df_display.drop(columns=['forward_dividend_yield'], inplace=True)
+    
+    df_display.rename(columns=rename_dict, inplace=True)
+    
+    # 重新排序一下便于好看
+    preferred_order = ['股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '成交量(股)', '股息收益率(%)', '行业']
+    actual_order = [c for c in preferred_order if c in df_display.columns]
+    df_display = df_display[actual_order]
+    
+    # 展示美化后的表格
+    st.success(f"🎉 成功筛选出 {len(df_display)} 只符合条件的香港股票！")
+    
+    st.dataframe(
+        df_display, 
+        use_container_width=True, 
+        hide_index=True,
+        height=400
+    )
+    
+    # 下载按钮与可视化
+    csv = df_display.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 导出筛选结果为 CSV 表格",
+        data=csv,
+        file_name="hk_stock_screener_results.csv",
+        mime="text/csv"
+    )
+    
+    # 行业占比可视化
+    if '行业' in df_display.columns:
+        st.markdown("### 📊 筛选结果之行业分布情况")
+        sector_counts = df_display['行业'].value_counts()
+        st.bar_chart(sector_counts, use_container_width=True)
+
 # ==================== UI 标题头部 ====================
 col_title, col_logo = st.columns([5, 1])
 with col_title:
@@ -252,6 +361,8 @@ selected_sectors = st.sidebar.multiselect("所属行业 (Sectors)", options=sect
 
 min_div_yield = st.sidebar.slider("最低股息收益率 (%)", min_value=0.0, max_value=20.0, key="min_div_yield", step=0.1)
 min_change = st.sidebar.slider("最低涨跌幅 (%)", min_value=-50.0, max_value=50.0, key="min_change", step=0.5)
+
+ggt_filter = st.sidebar.selectbox("港股通筛选 (Stock Connect)", ["不限", "仅限港股通", "排除港股通"], key="ggt_filter")
 
 st.sidebar.markdown("---")
 # 排序选项
@@ -400,68 +511,22 @@ with tab2:
         df_res = st.session_state.last_screened_df
         if df_res is not None:
             if not df_res.empty:
-                display_cols = ['symbol', 'shortName', 'regularMarketPrice', 'intradaymarketcap',
-                                'peratio.lasttwelvemonths', 'dayvolume', 'percentchange',
-                                'forward_dividend_yield', 'sector']
-                existing_cols = [c for c in display_cols if c in df_res.columns]
-                df_display = df_res[existing_cols].copy()
-                
-                # 友好列名翻译与格式化
-                rename_dict = {}
-                if 'symbol' in df_display.columns: rename_dict['symbol'] = '股票代码'
-                if 'shortName' in df_display.columns: rename_dict['shortName'] = '股票简称'
-                if 'sector' in df_display.columns: rename_dict['sector'] = '行业'
-                
-                if 'regularMarketPrice' in df_display.columns:
-                    df_display['价格(HKD)'] = df_display['regularMarketPrice'].round(2)
-                    df_display.drop(columns=['regularMarketPrice'], inplace=True)
-                if 'intradaymarketcap' in df_display.columns:
-                    df_display['市值(亿USD)'] = (df_display['intradaymarketcap'] / 1e8).round(2)
-                    df_display.drop(columns=['intradaymarketcap'], inplace=True)
-                if 'peratio.lasttwelvemonths' in df_display.columns:
-                    df_display['市盈率(PE)'] = df_display['peratio.lasttwelvemonths'].round(2)
-                    df_display.drop(columns=['peratio.lasttwelvemonths'], inplace=True)
-                if 'dayvolume' in df_display.columns:
-                    df_display['成交量(股)'] = df_display['dayvolume'].astype(int)
-                    df_display.drop(columns=['dayvolume'], inplace=True)
-                if 'percentchange' in df_display.columns:
-                    df_display['涨跌幅(%)'] = df_display['percentchange'].round(2)
-                    df_display.drop(columns=['percentchange'], inplace=True)
-                if 'forward_dividend_yield' in df_display.columns:
-                    df_display['股息收益率(%)'] = (df_display['forward_dividend_yield'] * 100).round(2)
-                    df_display.drop(columns=['forward_dividend_yield'], inplace=True)
-                
-                df_display.rename(columns=rename_dict, inplace=True)
-                
-                # 重新排序一下便于好看
-                preferred_order = ['股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '成交量(股)', '股息收益率(%)', '行业']
-                actual_order = [c for c in preferred_order if c in df_display.columns]
-                df_display = df_display[actual_order]
-                
-                # 展示美化后的表格
-                st.success(f"🎉 成功筛选出 {len(df_display)} 只符合条件的香港股票！")
-                
-                st.dataframe(
-                    df_display, 
-                    use_container_width=True, 
-                    hide_index=True,
-                    height=400
-                )
-                
-                # 下载按钮与可视化
-                csv = df_display.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 导出筛选结果为 CSV 表格",
-                    data=csv,
-                    file_name="hk_stock_screener_results.csv",
-                    mime="text/csv"
-                )
-                
-                # 行业占比可视化
-                if '行业' in df_display.columns:
-                    st.markdown("### 📊 筛选结果之行业分布情况")
-                    sector_counts = df_display['行业'].value_counts()
-                    st.bar_chart(sector_counts, use_container_width=True)
+                # 港股通本地二次筛选
+                if st.session_state.ggt_filter != "不限":
+                    with st.spinner("正在安全获取并对齐港股通成份股名单..."):
+                        ggt_list = fetch_stock_connect_list()
+                    if ggt_list:
+                        if st.session_state.ggt_filter == "仅限港股通":
+                            df_res = df_res[df_res['symbol'].isin(ggt_list)].copy()
+                        elif st.session_state.ggt_filter == "排除港股通":
+                            df_res = df_res[~df_res['symbol'].isin(ggt_list)].copy()
+                    else:
+                        st.warning("未能成功拉取到港股通名单，本次将忽略港股通筛选条件。")
+
+                if not df_res.empty:
+                    display_screened_results(df_res)
+                else:
+                    st.warning("筛选池经过港股通过滤后没有符合条件的股票，请放宽条件重新选择。")
             else:
                 st.warning("未检索到符合当前筛选器设定边界的香港股票，请放宽条件重新执行。")
 
