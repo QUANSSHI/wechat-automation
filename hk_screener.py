@@ -132,6 +132,8 @@ if "selected_sectors" not in st.session_state:
     st.session_state.selected_sectors = []
 if "last_screened_df" not in st.session_state:
     st.session_state.last_screened_df = None
+if "selected_symbol" not in st.session_state:
+    st.session_state.selected_symbol = ""
 
 def reset_filters():
     st.session_state.min_mcap = 0
@@ -203,6 +205,15 @@ def fetch_indices():
             data[name] = {"price": 0.0, "change": 0.0, "pct": 0.0}
     return data
 
+# ==================== 个股新闻抓取 ====================
+@st.cache_data(ttl=600)  # 10分钟缓存
+def fetch_stock_news(symbol):
+    try:
+        t = yf.Ticker(symbol)
+        return t.news
+    except Exception:
+        return []
+
 # ==================== UI 标题头部 ====================
 col_title, col_logo = st.columns([5, 1])
 with col_title:
@@ -255,7 +266,7 @@ sort_choice = st.sidebar.selectbox("排序字段", list(sort_options.keys()))
 sort_field, sort_asc = sort_options[sort_choice]
 
 # ==================== 主内容区：标签页式管理 ====================
-tab1, tab2, tab3 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析"])
+tab1, tab2, tab3, tab4 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析", "📰 相关个股重大新闻"])
 
 # -------------------- TAB 1: 大盘监控与量化策略 --------------------
 with tab1:
@@ -470,6 +481,7 @@ with tab3:
         custom_sym = st.text_input("或者手动输入任意港股代码 (格式如: 0700.HK, 9988.HK)")
     
     selected_symbol = custom_sym.strip() if custom_sym else (select_sym if select_sym != "-- 请选择 --" else "")
+    st.session_state.selected_symbol = selected_symbol
     
     if selected_symbol:
         # 兼容简短代码如 0700 转换为 0700.HK
@@ -519,6 +531,94 @@ with tab3:
                 st.error(f"拉取股票详情时发生错误: {str(e)}")
     else:
         st.info("💡 请先选择或输入一只股票代码（如 0700.HK 代表腾讯，9988.HK 代表阿里），以加载其深度历史走势图与财务指标分析。")
+
+# -------------------- TAB 4: 相关个股重大新闻 --------------------
+with tab4:
+    st.markdown("### 📰 香港股市与个股重大新闻提示")
+    
+    # 确定要查询的股票代码
+    news_symbol = st.session_state.selected_symbol if st.session_state.selected_symbol else "^HSI"
+    
+    col_news_left, col_news_right = st.columns([1, 1])
+    
+    with col_news_left:
+        st.markdown(f"#### 🔍 当前关注股票/大盘新闻 ({news_symbol})")
+        news_items = fetch_stock_news(news_symbol)
+        
+        if news_items:
+            for item in news_items[:8]:  # 最多显示8条
+                title = item.get('title', '无标题')
+                link = item.get('link', '#')
+                publisher = item.get('publisher', '未知媒体')
+                pub_time_raw = item.get('providerPublishTime', 0)
+                pub_time = datetime.datetime.fromtimestamp(pub_time_raw).strftime('%Y-%m-%d %H:%M') if pub_time_raw else "未知时间"
+                related = item.get('relatedTickers', [])
+                
+                st.markdown(f"""
+                <div class="premium-card">
+                    <div style="font-size:0.8rem; color:#a0aec0; margin-bottom:5px; display:flex; justify-content:space-between;">
+                        <span>📰 {publisher}</span>
+                        <span>⏱️ {pub_time}</span>
+                    </div>
+                    <a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:#3b82f6; font-size:1.0rem;">{title}</a>
+                    <div style="margin-top:8px;">
+                        {" ".join([f'<span style="background:rgba(99, 102, 241, 0.15); color:#a855f7; font-size:0.75rem; padding:2px 8px; border-radius:4px; margin-right:5px; font-weight:600;">{t}</span>' for t in related])}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info(f"暂未获取到 {news_symbol} 的近期相关重大新闻。")
+            
+    with col_news_right:
+        st.markdown("#### 🏆 筛选池中个股聚合新闻 (最新动态)")
+        
+        # 获取筛选池股票列表的 news
+        screened_tickers = []
+        if st.session_state.last_screened_df is not None and not st.session_state.last_screened_df.empty:
+            # 获取前5只股票以避免并发过大导致加载慢
+            screened_tickers = st.session_state.last_screened_df['symbol'].head(5).tolist()
+            
+        if screened_tickers:
+            st.markdown(f"<p style='font-size:0.85rem; color:#a0aec0;'>正在聚合以下选股池中前 5 只股票的最新消息: {', '.join(screened_tickers)}</p>", unsafe_allow_html=True)
+            aggregated_news = []
+            seen_uuids = set()
+            
+            for t_sym in screened_tickers:
+                t_news = fetch_stock_news(t_sym)
+                for item in t_news:
+                    uuid = item.get('uuid')
+                    if uuid not in seen_uuids:
+                        seen_uuids.add(uuid)
+                        aggregated_news.append(item)
+            
+            # 按时间从新到旧排序
+            aggregated_news.sort(key=lambda x: x.get('providerPublishTime', 0), reverse=True)
+            
+            if aggregated_news:
+                for item in aggregated_news[:10]:  # 显示前10条
+                    title = item.get('title', '无标题')
+                    link = item.get('link', '#')
+                    publisher = item.get('publisher', '未知媒体')
+                    pub_time_raw = item.get('providerPublishTime', 0)
+                    pub_time = datetime.datetime.fromtimestamp(pub_time_raw).strftime('%Y-%m-%d %H:%M') if pub_time_raw else "未知时间"
+                    related = item.get('relatedTickers', [])
+                    
+                    st.markdown(f"""
+                    <div class="premium-card" style="border-left: 2px solid #ec4899;">
+                        <div style="font-size:0.8rem; color:#a0aec0; margin-bottom:5px; display:flex; justify-content:space-between;">
+                            <span>📰 {publisher}</span>
+                            <span>⏱️ {pub_time}</span>
+                        </div>
+                        <a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:#ec4899; font-size:1.0rem;">{title}</a>
+                        <div style="margin-top:8px;">
+                            {" ".join([f'<span style="background:rgba(236, 72, 153, 0.15); color:#ec4899; font-size:0.75rem; padding:2px 8px; border-radius:4px; margin-right:5px; font-weight:600;">{t}</span>' for t in related])}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("所选股票近期暂无重大新闻报道。")
+        else:
+            st.info("💡 请先在第二栏执行筛选获取选股池，或者在大盘和个股页面激活目标，这里将展示选股池中个股的聚合新闻动态。")
 
 st.markdown("---")
 st.caption("提示：此智能终端完全在您本地安全运行，与网页相比响应更快。若遇到数据获取慢，可能与网络连接 Yahoo Finance 的连通状况有关。")
