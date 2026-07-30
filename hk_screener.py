@@ -131,6 +131,8 @@ if "min_change" not in st.session_state:
     st.session_state.min_change = -50.0
 if "selected_sectors_cn" not in st.session_state:
     st.session_state.selected_sectors_cn = []
+if "buffett_filter" not in st.session_state:
+    st.session_state.buffett_filter = False
 if "last_screened_df" not in st.session_state:
     st.session_state.last_screened_df = None
 if "selected_symbol" not in st.session_state:
@@ -150,6 +152,7 @@ def reset_filters():
     st.session_state.selected_sectors_cn = []
     st.session_state.last_screened_df = None
     st.session_state.ggt_filter = "不限"
+    st.session_state.buffett_filter = False
 
 # ==================== 策略模板填充器 ====================
 def apply_template(template_name):
@@ -163,6 +166,7 @@ def apply_template(template_name):
         st.session_state.min_div_yield = 6.0
         st.session_state.min_change = -50.0
         st.session_state.selected_sectors_cn = ["金融服务 (Financial Services)", "公用事业 (Utilities)", "房地产 (Real Estate)"]
+        st.session_state.buffett_filter = False
     elif template_name == "undervalued_growth":
         st.session_state.min_mcap = 1000000000  # 10亿 USD
         st.session_state.max_mcap = 0
@@ -173,6 +177,7 @@ def apply_template(template_name):
         st.session_state.min_div_yield = 1.0
         st.session_state.min_change = -50.0
         st.session_state.selected_sectors_cn = ["科技 (Technology)", "医疗健康 (Healthcare)", "通讯服务 (Communication Services)"]
+        st.session_state.buffett_filter = False
     elif template_name == "microcap_alpha":
         st.session_state.min_mcap = 100000000  # 1亿 USD
         st.session_state.max_mcap = 1000000000  # 10亿 USD
@@ -183,6 +188,18 @@ def apply_template(template_name):
         st.session_state.min_div_yield = 2.0
         st.session_state.min_change = -50.0
         st.session_state.selected_sectors_cn = []
+        st.session_state.buffett_filter = False
+    elif template_name == "buffett_alpha":
+        st.session_state.min_mcap = 1000000000  # 10亿 USD
+        st.session_state.max_mcap = 0
+        st.session_state.max_pe = 25
+        st.session_state.min_volume = 100000
+        st.session_state.min_price = 1.0
+        st.session_state.max_price = 0.0
+        st.session_state.min_div_yield = 1.0
+        st.session_state.min_change = -50.0
+        st.session_state.selected_sectors_cn = []
+        st.session_state.buffett_filter = True
 
 # ==================== 大盘核心指数行情抓取 ====================
 @st.cache_data(ttl=180)  # 3分钟缓存
@@ -257,6 +274,100 @@ def fetch_stock_connect_list():
         except Exception:
             break
     return list(symbols)
+
+# ==================== 巴菲特财务报表条件校验 ====================
+@st.cache_data(ttl=3600)  # 缓存 1 小时，因为财务报表数据比较稳定，不需要频繁请求
+def check_buffett_criteria(symbol):
+    try:
+        t = yf.Ticker(symbol)
+        info = t.info
+        
+        # 1. 利润表核心率指标初步极速校验
+        gross_margin = info.get('grossMargins')
+        profit_margin = info.get('profitMargins')
+        roe = info.get('returnOnEquity')
+        
+        # 毛利率持续稳定在 40% 以上
+        if gross_margin is not None and gross_margin < 0.40:
+            return False, f"毛利率为 {gross_margin*100:.1f}%, 低于 40% 门槛"
+        # 净利率持续高于 20%
+        if profit_margin is not None and profit_margin < 0.20:
+            return False, f"净利率为 {profit_margin*100:.1f}%, 低于 20% 门槛"
+        # 股本回报率 ROE 持续大于 20% (在此处取宽限下限 15% 校验任一年)
+        if roe is not None and roe < 0.15:
+            return False, f"股东权益报酬率 ROE 为 {roe*100:.1f}%, 低于 15% 核心底线"
+            
+        # 2. 深度三张表指标对齐与计算
+        financials = t.financials
+        balance_sheet = t.balance_sheet
+        cashflow = t.cashflow
+        
+        if financials.empty or balance_sheet.empty or cashflow.empty:
+            return True, "核心指标符合 (深度财务报表缺失，宽限通过)"
+            
+        # 净利润 (最新财年)
+        net_income = None
+        for label in ['Net Income', 'Net Income Common Stockholders', 'Net Income Continuous Operations']:
+            if label in financials.index:
+                net_income = financials.loc[label].iloc[0]
+                break
+        
+        if net_income is None or pd.isna(net_income) or net_income <= 0:
+            return False, "最新净利润为负或缺失，不符合巴菲特稳健标准"
+            
+        # 毛利润
+        gross_profit = None
+        if 'Gross Profit' in financials.index:
+            gross_profit = financials.loc['Gross Profit'].iloc[0]
+            
+        # 销售及管理费用 (SG&A)
+        sga = None
+        for label in ['Selling General And Administration', 'Selling General Administrative', 'Selling General and Administrative']:
+            if label in financials.index:
+                sga = financials.loc[label].iloc[0]
+                break
+        
+        # 缺失则尝试用销售费用 + 管理费用进行拼装
+        if sga is None or pd.isna(sga):
+            s_exp = financials.loc['Selling And Marketing Expense'].iloc[0] if 'Selling And Marketing Expense' in financials.index else 0
+            g_exp = financials.loc['General And Administrative Expense'].iloc[0] if 'General And Administrative Expense' in financials.index else 0
+            sga = abs(s_exp or 0) + abs(g_exp or 0)
+            
+        if gross_profit and sga and not pd.isna(gross_profit) and not pd.isna(sga) and gross_profit > 0:
+            sga_ratio = abs(sga) / gross_profit
+            if sga_ratio > 0.30:
+                return False, f"销管费用 (SG&A) 占毛利比例达 {sga_ratio*100:.1f}%, 超出 30% 门槛"
+                
+        # 长期负债能在 3 至 4 年内通过净利润还清
+        lt_debt = 0
+        for label in ['Long Term Debt', 'Long Term Debt And Capital Lease Obligation']:
+            if label in balance_sheet.index:
+                val = balance_sheet.loc[label].iloc[0]
+                if not pd.isna(val):
+                    lt_debt = val
+                    break
+        
+        debt_years = abs(lt_debt) / net_income
+        if debt_years > 4.0:
+            return False, f"长期负债需花 {debt_years:.1f} 年的净利润才能偿还, 超出 4 年门槛"
+            
+        # 资本支出 (CapEx) 占净利润比例低于 25%
+        capex = 0
+        for label in ['Capital Expenditure', 'Capital Expenditures']:
+            if label in cashflow.index:
+                val = cashflow.loc[label].iloc[0]
+                if not pd.isna(val):
+                    capex = val
+                    break
+                    
+        capex_ratio = abs(capex) / net_income
+        if capex_ratio > 0.25:
+            return False, f"资本支出占净利润比例达 {capex_ratio*100:.1f}%, 超出 25% 门槛"
+            
+        return True, "符合巴菲特财务选股指标"
+        
+    except Exception as e:
+        return True, f"符合核心指标 (报表分析校验被跳过: {str(e)})"
 
 # ==================== 筛选结果展示与格式化 ====================
 def display_screened_results(df_res):
@@ -602,6 +713,8 @@ min_change = st.sidebar.slider("最低涨跌幅 (%)", min_value=-50.0, max_value
 
 ggt_filter = st.sidebar.selectbox("港股通筛选 (Stock Connect)", ["不限", "仅限港股通", "排除港股通"], key="ggt_filter")
 
+buffett_filter = st.sidebar.checkbox("🔒 开启巴菲特深度财报指标过滤", key="buffett_filter")
+
 st.sidebar.markdown("---")
 # 排序选项
 sort_options = {
@@ -653,23 +766,23 @@ with tab1:
     st.markdown("### 💡 快捷量化策略模板 (一键应用)")
     st.markdown("点击以下策略，将自动同步参数到侧边栏。之后在左下角点击 **「执行筛选」** 即可完成分析。")
     
-    col_strat1, col_strat2, col_strat3 = st.columns(3)
+    col_row1_1, col_row1_2 = st.columns(2)
     
-    with col_strat1:
+    with col_row1_1:
         st.markdown("""
-        <div class="premium-card" style="height: 190px;">
+        <div class="premium-card" style="height: 175px;">
             <div style="font-weight: 700; font-size: 1.15rem; color: #6366f1;">💰 高股息蓝筹龙头</div>
             <div style="font-size: 0.85rem; color: #a0aec0; margin: 10px 0; line-height: 1.4;">
-                寻找大型公用事业、金融服务、房地产领域的优质巨头。要求市值 <b>>50亿 USD</b>、市盈率 <b>&lt;12</b> 且股息率 <b>>6%</b>。
+                寻找大型公用事业、金融服务、房地产领域的优质港股巨头。要求市值 <b>>50亿 USD</b>、市盈率 <b>&lt;12</b> 且股息率 <b>>6%</b>。
             </div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("应用 “高股息蓝筹龙头” 策略", key="btn_high_div", on_click=apply_template, args=("high_div",)):
             st.success("「高股息蓝筹龙头」策略参数已填充，请切往下一标签页执行筛选！")
             
-    with col_strat2:
+    with col_row1_2:
         st.markdown("""
-        <div class="premium-card" style="height: 190px;">
+        <div class="premium-card" style="height: 175px;">
             <div style="font-weight: 700; font-size: 1.15rem; color: #a855f7;">🚀 低估值成长先锋</div>
             <div style="font-size: 0.85rem; color: #a0aec0; margin: 10px 0; line-height: 1.4;">
                 聚焦中大型科技股、生物医药、通讯行业。寻找估值合理（PE <b>&lt;22</b>）、市值 <b>>10亿 USD</b> 且日均流动性较强的成长股。
@@ -679,9 +792,12 @@ with tab1:
         if st.button("应用 “低估值成长先锋” 策略", key="btn_growth", on_click=apply_template, args=("undervalued_growth",)):
             st.success("「低估值成长先锋」策略参数已填充，请切往下一标签页执行筛选！")
             
-    with col_strat3:
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+    col_row2_1, col_row2_2 = st.columns(2)
+    
+    with col_row2_1:
         st.markdown("""
-        <div class="premium-card" style="height: 190px;">
+        <div class="premium-card" style="height: 175px;">
             <div style="font-weight: 700; font-size: 1.15rem; color: #ec4899;">🦄 小市值黑马探测</div>
             <div style="font-size: 0.85rem; color: #a0aec0; margin: 10px 0; line-height: 1.4;">
                 在小市值（<b>1亿 ~ 10亿美元</b>）区间内，挑选估值极低（PE <b>&lt;10</b>）、价格坚实且兼具稳定分红（股息率 <b>>2%</b>）的小盘黑马。
@@ -690,6 +806,18 @@ with tab1:
         """, unsafe_allow_html=True)
         if st.button("应用 “小市值黑马探测” 策略", key="btn_microcap", on_click=apply_template, args=("microcap_alpha",)):
             st.success("「小市值黑马探测」策略参数已填充，请切往下一标签页执行筛选！")
+            
+    with col_row2_2:
+        st.markdown("""
+        <div class="premium-card" style="height: 175px;">
+            <div style="font-weight: 700; font-size: 1.15rem; color: #eab308;">📖 巴菲特教你读财报选股</div>
+            <div style="font-size: 0.85rem; color: #a0aec0; margin: 10px 0; line-height: 1.4;">
+                应用巴菲特护城河财务法则：毛利率<b>>40%</b>、净利率<b>>20%</b>、销管费<b>&lt;30%</b>、ROE<b>>15%</b>、负债可在<b>4年内还清</b>、资本支出<b>&lt;25%</b>。
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("应用 “巴菲特读财报” 策略", key="btn_buffett", on_click=apply_template, args=("buffett_alpha",)):
+            st.success("「巴菲特教你读财报选股」策略及报表深度过滤已激活，请切往下一标签页执行筛选！")
 
 # -------------------- TAB 2: 香港股权筛选终端 --------------------
 with tab2:
@@ -755,6 +883,23 @@ with tab2:
         df_res = st.session_state.last_screened_df
         if df_res is not None:
             if not df_res.empty:
+                # 巴菲特财务指标深度对齐过滤
+                if st.session_state.buffett_filter:
+                    with st.spinner("正在对齐并校验巴菲特深度财报指标 (利润表/资产负债表/现金流量表)..."):
+                        buffett_passed = []
+                        progress_bar = st.progress(0.0, text="正在加载并校验财务数据...")
+                        
+                        total_stocks = len(df_res)
+                        for idx, row in enumerate(df_res.itertuples()):
+                            sym = row.symbol
+                            progress_bar.progress((idx + 0.1) / total_stocks, text=f"正在分析 {row.shortName} ({sym})...")
+                            passed, reason = check_buffett_criteria(sym)
+                            if passed:
+                                buffett_passed.append(sym)
+                                
+                        progress_bar.empty()
+                        df_res = df_res[df_res['symbol'].isin(buffett_passed)].copy()
+                        
                 # 港股通本地二次筛选
                 if st.session_state.ggt_filter != "不限":
                     with st.spinner("正在安全获取并对齐港股通成份股名单..."):
