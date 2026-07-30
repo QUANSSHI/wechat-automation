@@ -129,8 +129,8 @@ if "min_div_yield" not in st.session_state:
     st.session_state.min_div_yield = 0.0
 if "min_change" not in st.session_state:
     st.session_state.min_change = -50.0
-if "selected_sectors" not in st.session_state:
-    st.session_state.selected_sectors = []
+if "selected_sectors_cn" not in st.session_state:
+    st.session_state.selected_sectors_cn = []
 if "last_screened_df" not in st.session_state:
     st.session_state.last_screened_df = None
 if "selected_symbol" not in st.session_state:
@@ -147,7 +147,7 @@ def reset_filters():
     st.session_state.max_price = 0.0
     st.session_state.min_div_yield = 0.0
     st.session_state.min_change = -50.0
-    st.session_state.selected_sectors = []
+    st.session_state.selected_sectors_cn = []
     st.session_state.last_screened_df = None
     st.session_state.ggt_filter = "不限"
 
@@ -162,7 +162,7 @@ def apply_template(template_name):
         st.session_state.max_price = 0.0
         st.session_state.min_div_yield = 6.0
         st.session_state.min_change = -50.0
-        st.session_state.selected_sectors = ["Financial Services", "Utilities", "Real Estate"]
+        st.session_state.selected_sectors_cn = ["金融服务 (Financial Services)", "公用事业 (Utilities)", "房地产 (Real Estate)"]
     elif template_name == "undervalued_growth":
         st.session_state.min_mcap = 1000000000  # 10亿 USD
         st.session_state.max_mcap = 0
@@ -172,7 +172,7 @@ def apply_template(template_name):
         st.session_state.max_price = 0.0
         st.session_state.min_div_yield = 1.0
         st.session_state.min_change = -50.0
-        st.session_state.selected_sectors = ["Technology", "Healthcare", "Communication Services"]
+        st.session_state.selected_sectors_cn = ["科技 (Technology)", "医疗健康 (Healthcare)", "通讯服务 (Communication Services)"]
     elif template_name == "microcap_alpha":
         st.session_state.min_mcap = 100000000  # 1亿 USD
         st.session_state.max_mcap = 1000000000  # 10亿 USD
@@ -182,7 +182,7 @@ def apply_template(template_name):
         st.session_state.max_price = 10.0
         st.session_state.min_div_yield = 2.0
         st.session_state.min_change = -50.0
-        st.session_state.selected_sectors = []
+        st.session_state.selected_sectors_cn = []
 
 # ==================== 大盘核心指数行情抓取 ====================
 @st.cache_data(ttl=180)  # 3分钟缓存
@@ -265,6 +265,22 @@ def display_screened_results(df_res):
                     'forward_dividend_yield', 'sector']
     existing_cols = [c for c in display_cols if c in df_res.columns]
     df_display = df_res[existing_cols].copy()
+    
+    if 'sector' in df_display.columns:
+        inv_sector_map = {
+            "Technology": "科技",
+            "Financial Services": "金融服务",
+            "Consumer Cyclical": "周期性消费",
+            "Consumer Defensive": "防御性消费",
+            "Healthcare": "医疗健康",
+            "Industrials": "工业",
+            "Basic Materials": "基础材料",
+            "Energy": "能源",
+            "Real Estate": "房地产",
+            "Communication Services": "通讯服务",
+            "Utilities": "公用事业"
+        }
+        df_display['sector'] = df_display['sector'].map(inv_sector_map).fillna(df_display['sector'])
     
     # 友好列名翻译与格式化
     rename_dict = {}
@@ -566,12 +582,20 @@ with col_sidebar3:
 with col_sidebar4:
     max_price = st.number_input("最高价格(HKD)", min_value=0.0, key="max_price", step=0.1)
 
-sectors = [
-    "Technology", "Financial Services", "Consumer Cyclical", "Consumer Defensive",
-    "Healthcare", "Industrials", "Basic Materials", "Energy", "Real Estate",
-    "Communication Services", "Utilities"
-]
-selected_sectors = st.sidebar.multiselect("所属行业 (Sectors)", options=sectors, key="selected_sectors")
+SECTOR_MAP = {
+    "科技 (Technology)": "Technology",
+    "金融服务 (Financial Services)": "Financial Services",
+    "周期性消费 (Consumer Cyclical)": "Consumer Cyclical",
+    "防御性消费 (Consumer Defensive)": "Consumer Defensive",
+    "医疗健康 (Healthcare)": "Healthcare",
+    "工业 (Industrials)": "Industrials",
+    "基础材料 (Basic Materials)": "Basic Materials",
+    "能源 (Energy)": "Energy",
+    "房地产 (Real Estate)": "Real Estate",
+    "通讯服务 (Communication Services)": "Communication Services",
+    "公用事业 (Utilities)": "Utilities"
+}
+selected_sectors_cn = st.sidebar.multiselect("所属行业 (Sectors)", options=list(SECTOR_MAP.keys()), key="selected_sectors_cn")
 
 min_div_yield = st.sidebar.slider("最低股息收益率 (%)", min_value=0.0, max_value=20.0, key="min_div_yield", step=0.1)
 min_change = st.sidebar.slider("最低涨跌幅 (%)", min_value=-50.0, max_value=50.0, key="min_change", step=0.5)
@@ -691,8 +715,9 @@ with tab2:
         conditions.append(EquityQuery('gte', ['intradayprice', st.session_state.min_price]))
     if st.session_state.max_price > 0:
         conditions.append(EquityQuery('lte', ['intradayprice', st.session_state.max_price]))
-    if st.session_state.selected_sectors:
-        sector_queries = [EquityQuery('eq', ['sector', s]) for s in st.session_state.selected_sectors]
+    if st.session_state.selected_sectors_cn:
+        selected_sectors_en = [SECTOR_MAP[s] for s in st.session_state.selected_sectors_cn]
+        sector_queries = [EquityQuery('eq', ['sector', s]) for s in selected_sectors_en]
         if len(sector_queries) > 1:
             conditions.append(EquityQuery('or', sector_queries))
         else:
@@ -778,11 +803,26 @@ with tab3:
                 info = ticker.info
                 
                 if 'shortName' in info:
+                    inv_sector_map = {
+                        "Technology": "科技",
+                        "Financial Services": "金融服务",
+                        "Consumer Cyclical": "周期性消费",
+                        "Consumer Defensive": "防御性消费",
+                        "Healthcare": "医疗健康",
+                        "Industrials": "工业",
+                        "Basic Materials": "基础材料",
+                        "Energy": "能源",
+                        "Real Estate": "房地产",
+                        "Communication Services": "通讯服务",
+                        "Utilities": "公用事业"
+                    }
+                    sector_en = info.get('sector', 'N/A')
+                    sector_cn = inv_sector_map.get(sector_en, sector_en)
                     # 显示高品质股票名片
                     st.markdown(f"""
                     <div class="premium-card" style="border-left: 4px solid #a855f7;">
                         <span style="font-size: 1.25rem; font-weight: 700; color:#ffffff;">{info.get('shortName')} ({selected_symbol})</span> | 
-                        <span style="color:#a0aec0;">行业: {info.get('sector', 'N/A')} - {info.get('industry', 'N/A')}</span>
+                        <span style="color:#a0aec0;">行业: {sector_cn} - {info.get('industry', 'N/A')}</span>
                     </div>
                     """, unsafe_allow_html=True)
                     
