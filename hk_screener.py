@@ -162,6 +162,12 @@ st.markdown("""
         visibility: hidden !important;
     }
     
+    /* 移除顶部大块空白间距，紧凑排版 */
+    div[data-testid="stMainBlockContainer"], .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1.5rem !important;
+    }
+    
     /* 让 Streamlit 的 st.container(border=True) 变成我们的 premium-card 样式 */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background: var(--card-bg) !important;
@@ -169,6 +175,19 @@ st.markdown("""
         border-radius: 16px !important;
         padding: 18px 22px !important;
         box-shadow: var(--shadow) !important;
+    }
+    
+    /* 美化 Tabs 导航栏 */
+    button[data-baseweb="tab"] {
+        font-size: 1.05rem !important;
+        font-weight: 600 !important;
+        color: var(--text-muted) !important;
+        border-bottom: 2px solid transparent !important;
+        transition: all 0.2s ease !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: var(--text-value) !important;
+        border-bottom: 2px solid #6366f1 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -726,10 +745,23 @@ def render_heatmap():
     components.html(html_code, height=450, scrolling=True)
 
 # ==================== UI 标题头部 ====================
-col_title, col_logo = st.columns([5, 1])
+col_title, col_logo = st.columns([3, 1])
 with col_title:
     st.markdown('<div class="gradient-title">HKScreener Pro</div>', unsafe_allow_html=True)
-    st.markdown("<p style='font-size:1.0rem; color:var(--text-muted);'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:1.0rem; color:var(--text-muted); margin: 0;'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
+with col_logo:
+    st.markdown("""
+    <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; height: 100%; margin-top: 15px;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: #10b981; display: flex; align-items: center; gap: 5px; margin-bottom: 4px;">
+            <span style="display: inline-block; width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981;"></span>
+            本地安全运行 (Local Security)
+        </div>
+        <div style="font-size: 0.8rem; font-weight: 600; color: #3b82f6; display: flex; align-items: center; gap: 5px;">
+            <span style="display: inline-block; width: 8px; height: 8px; background-color: #3b82f6; border-radius: 50%; box-shadow: 0 0 8px #3b82f6;"></span>
+            港股通数据就绪 (Stock Connect Active)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ==================== 顶部多因子选股控制台 ====================
 SECTOR_MAP = {
