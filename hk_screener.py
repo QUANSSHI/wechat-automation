@@ -314,34 +314,51 @@ def fetch_indices():
     return data
 
 # ==================== 港股简称汉化映射抓取 ====================
-@st.cache_data(ttl=86400)  # 24小时缓存
-def get_hk_stock_names_cn():
-    url = "https://push2.eastmoney.com/api/qt/clist/get"
-    params = {
-        "pn": 1,
-        "pz": 3000,  # 获取前 3000 只港股，覆盖所有主要港股
-        "po": 1,
-        "np": 1,
-        "fltt": 2,
-        "invt": 2,
-        "fs": "m:128+t:3,m:128+t:4",  # 港股主板与创业板
-        "fields": "f12,f14"  # f12是代码, f14是名称
-    }
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/91.0.4472.124"
-    }
+def translate_symbols_to_cn(symbols_list):
+    if not symbols_list:
+        return {}
+    
+    # 过滤掉非股票代码的无效值
+    symbols_list = [s for s in symbols_list if s and s != "-- 请选择 --"]
+    if not symbols_list:
+        return {}
+        
+    # 腾讯 API 对每次请求的股票数量一般有上限（如每次最多查询 100 只）
+    # 我们以 80 只为一组进行分批请求，保证绝对稳定性
     name_map = {}
-    try:
-        response = requests.get(url, params=params, headers=headers, timeout=5)
-        res_json = response.json()
-        diff = res_json.get('data', {}).get('diff', [])
-        for item in diff:
-            code = item.get('f12')
-            name = item.get('f14')
-            if code and name:
-                name_map[code] = name
-    except Exception:
-        pass
+    chunk_size = 80
+    for i in range(0, len(symbols_list), chunk_size):
+        chunk = symbols_list[i : i + chunk_size]
+        tencent_keys = []
+        symbol_to_key = {}
+        for sym in chunk:
+            code_num = sym.split('.')[0]
+            formatted_code = f"hk{code_num.zfill(5)}"
+            tencent_keys.append(formatted_code)
+            symbol_to_key[formatted_code] = sym
+            
+        url = f"http://qt.gtimg.cn/q={','.join(tencent_keys)}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/91.0.4472.124"
+        }
+        try:
+            response = requests.get(url, headers=headers, timeout=5)
+            raw_content = response.content.decode('gbk', errors='ignore')
+            for line in raw_content.split(';'):
+                line = line.strip()
+                if not line or '=' not in line:
+                    continue
+                var_name, val_str = line.split('=', 1)
+                val_str = val_str.strip('"')
+                parts = val_str.split('~')
+                if len(parts) > 2:
+                    tencent_code = var_name.replace('v_', '').strip()
+                    name = parts[1]
+                    orig_symbol = symbol_to_key.get(tencent_code)
+                    if orig_symbol:
+                        name_map[orig_symbol] = name
+        except Exception:
+            pass
     return name_map
 
 # ==================== 个股新闻抓取 ====================
@@ -495,15 +512,11 @@ def display_screened_results(df_res):
     existing_cols = [c for c in display_cols if c in df_res.columns]
     df_display = df_res[existing_cols].copy()
     
-    # 汉化股票简称
-    name_map = get_hk_stock_names_cn()
-    if 'shortName' in df_display.columns:
-        def translate_name(row):
-            sym = row['symbol']
-            code_num = sym.split('.')[0]
-            formatted_code = code_num.zfill(5)
-            return name_map.get(formatted_code, row['shortName'])
-        df_display['shortName'] = df_display.apply(translate_name, axis=1)
+    # 批量汉化股票简称 (使用腾讯金融 API)
+    if 'symbol' in df_display.columns and 'shortName' in df_display.columns:
+        symbols_list = df_display['symbol'].tolist()
+        cn_names_map = translate_symbols_to_cn(symbols_list)
+        df_display['shortName'] = df_display['symbol'].map(cn_names_map).fillna(df_display['shortName'])
     
     if 'sector' in df_display.columns:
         inv_sector_map = {
@@ -1032,13 +1045,11 @@ with tab3:
     if st.session_state.last_screened_df is not None and not st.session_state.last_screened_df.empty:
         symbol_list = st.session_state.last_screened_df['symbol'].tolist()
     
-    name_map = get_hk_stock_names_cn()
+    name_map = translate_symbols_to_cn(symbol_list)
     def format_symbol(sym):
         if sym == "-- 请选择 --":
             return sym
-        code_num = sym.split('.')[0]
-        formatted_code = code_num.zfill(5)
-        cn_name = name_map.get(formatted_code, "")
+        cn_name = name_map.get(sym, "")
         return f"{sym} ({cn_name})" if cn_name else sym
 
     col_sel, col_input = st.columns([3, 2])
@@ -1077,9 +1088,8 @@ with tab3:
                     sector_en = info.get('sector', 'N/A')
                     sector_cn = inv_sector_map.get(sector_en, sector_en)
                     # 翻译简称
-                    code_num = selected_symbol.split('.')[0]
-                    formatted_code = code_num.zfill(5)
-                    cn_name = name_map.get(formatted_code, info.get('shortName', selected_symbol))
+                    cn_names_map = translate_symbols_to_cn([selected_symbol])
+                    cn_name = cn_names_map.get(selected_symbol, info.get('shortName', selected_symbol))
                     # 显示高品质股票名片
                     st.markdown(f"""
                     <div class="premium-card" style="border-left: 4px solid #a855f7;">
