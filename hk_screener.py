@@ -10,7 +10,7 @@ st.set_page_config(
     page_title="HKScreener Pro - 香港股权筛选智能终端",
     layout="wide",
     page_icon="📈",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ==================== 极客级 UI 样式注入 (CSS) ====================
@@ -160,6 +160,15 @@ st.markdown("""
     }
     footer {
         visibility: hidden !important;
+    }
+    
+    /* 让 Streamlit 的 st.container(border=True) 变成我们的 premium-card 样式 */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: var(--card-bg) !important;
+        border: 1px solid var(--card-border) !important;
+        border-radius: 16px !important;
+        padding: 18px 22px !important;
+        box-shadow: var(--shadow) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -717,34 +726,7 @@ def render_heatmap():
     components.html(html_code, height=450, scrolling=True)
 
 # ==================== UI 标题头部 ====================
-col_title, col_logo = st.columns([5, 1])
-with col_title:
-    st.markdown('<div class="gradient-title">HKScreener Pro</div>', unsafe_allow_html=True)
-    st.markdown("<p style='font-size:1.0rem; color:var(--text-muted);'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
-
-# ==================== 侧边栏：多因子筛选条件配置 ====================
-st.sidebar.markdown("### 🔍 多因子筛选器")
-
-# 侧边栏重置按钮
-st.sidebar.button("🧹 重置筛选条件", type="secondary", on_click=reset_filters)
-
-# 侧边栏具体过滤输入绑定
-st.sidebar.markdown("---")
-col_sidebar1, col_sidebar2 = st.sidebar.columns(2)
-with col_sidebar1:
-    min_mcap = st.number_input("最小市值(USD)", min_value=0, key="min_mcap", step=100000000)
-with col_sidebar2:
-    max_mcap = st.number_input("最大市值(USD)", min_value=0, key="max_mcap", step=100000000)
-
-max_pe = st.sidebar.slider("最大 PE (Trailing)", min_value=0, max_value=200, key="max_pe", step=1)
-min_volume = st.sidebar.number_input("最小日成交量 (股)", min_value=0, key="min_volume", step=100000)
-
-col_sidebar3, col_sidebar4 = st.sidebar.columns(2)
-with col_sidebar3:
-    min_price = st.number_input("最低价格(HKD)", min_value=0.0, key="min_price", step=0.1)
-with col_sidebar4:
-    max_price = st.number_input("最高价格(HKD)", min_value=0.0, key="max_price", step=0.1)
-
+# ==================== 顶部多因子选股控制台 ====================
 SECTOR_MAP = {
     "科技 (Technology)": "Technology",
     "金融服务 (Financial Services)": "Financial Services",
@@ -758,17 +740,6 @@ SECTOR_MAP = {
     "通讯服务 (Communication Services)": "Communication Services",
     "公用事业 (Utilities)": "Utilities"
 }
-selected_sectors_cn = st.sidebar.multiselect("所属行业 (Sectors)", options=list(SECTOR_MAP.keys()), key="selected_sectors_cn")
-
-min_div_yield = st.sidebar.slider("最低股息收益率 (%)", min_value=0.0, max_value=20.0, key="min_div_yield", step=0.1)
-min_change = st.sidebar.slider("最低涨跌幅 (%)", min_value=-50.0, max_value=50.0, key="min_change", step=0.5)
-
-ggt_filter = st.sidebar.selectbox("港股通筛选 (Stock Connect)", ["不限", "仅限港股通", "排除港股通"], key="ggt_filter")
-
-buffett_filter = st.sidebar.checkbox("🔒 开启巴菲特深度财报指标过滤", key="buffett_filter")
-
-st.sidebar.markdown("---")
-# 排序选项
 sort_options = {
     "市值 (大→小)": ("intradaymarketcap", False),
     "市值 (小→大)": ("intradaymarketcap", True),
@@ -776,8 +747,36 @@ sort_options = {
     "成交量 (高→低)": ("dayvolume", False),
     "PE (低→高)": ("peratio.lasttwelvemonths", True),
 }
-sort_choice = st.sidebar.selectbox("排序字段", list(sort_options.keys()))
+
+with st.container(border=True):
+    st.markdown('<div style="font-weight: 700; font-size: 1.15rem; color: var(--text-value); margin-bottom: 10px;">🔍 多因子智能筛选控制台</div>', unsafe_allow_html=True)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        min_mcap = st.number_input("最小市值(USD)", min_value=0, key="min_mcap", step=100000000)
+        max_mcap = st.number_input("最大市值(USD)", min_value=0, key="max_mcap", step=100000000)
+        max_pe = st.slider("最大 PE (Trailing)", min_value=0, max_value=200, key="max_pe", step=1)
+    with col2:
+        min_price = st.number_input("最低价格(HKD)", min_value=0.0, key="min_price", step=0.1)
+        max_price = st.number_input("最高价格(HKD)", min_value=0.0, key="max_price", step=0.1)
+        min_volume = st.number_input("最小日成交量 (股)", min_value=0, key="min_volume", step=100000)
+    with col3:
+        min_change = st.slider("最低涨跌幅 (%)", min_value=-50.0, max_value=50.0, key="min_change", step=0.5)
+        min_div_yield = st.slider("最低股息收益率 (%)", min_value=0.0, max_value=20.0, key="min_div_yield", step=0.1)
+        sort_choice = st.selectbox("排序字段", list(sort_options.keys()))
+    with col4:
+        selected_sectors_cn = st.multiselect("所属行业 (Sectors)", options=list(SECTOR_MAP.keys()), key="selected_sectors_cn")
+        ggt_filter = st.selectbox("港股通筛选 (Stock Connect)", ["不限", "仅限港股通", "排除港股通"], key="ggt_filter")
+        buffett_filter = st.checkbox("🔒 开启巴菲特深度财报指标过滤", key="buffett_filter")
+        st.button("🧹 重置筛选条件", type="secondary", on_click=reset_filters, use_container_width=True)
+
 sort_field, sort_asc = sort_options[sort_choice]
+
+# ==================== UI 标题头部 ====================
+col_title, col_logo = st.columns([5, 1])
+with col_title:
+    st.markdown('<div class="gradient-title">HKScreener Pro</div>', unsafe_allow_html=True)
+    st.markdown("<p style='font-size:1.0rem; color:var(--text-muted);'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
 
 # ==================== 主内容区：标签页式管理 ====================
 tab1, tab2, tab3, tab4 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析", "📰 相关个股重大新闻"])
