@@ -548,62 +548,77 @@ def fetch_extra_metrics(symbol):
         t = yf.Ticker(symbol)
         info = t.info
         
-        # 1. 净利率
-        profit_margin = info.get('profitMargins')
-        profit_margin_val = profit_margin * 100 if profit_margin is not None else None
+        # 1. 资产净利率 (ROA)
+        roa = info.get('returnOnAssets')
+        roa_val = roa * 100 if roa is not None else None
         
-        # 2. 净资产 (亿HKD)
-        book_value = info.get('bookValue')
-        shares = info.get('sharesOutstanding')
-        net_assets_val = None
-        if book_value and shares:
-            net_assets_val = (book_value * shares) / 1e8
-            
+        # 2. 股价/每股净资产 (PB)
+        pb_val = info.get('priceToBook')
+        
         # 3. 现金流是否为正 (使用经营现金流判定)
         op_cf = info.get('operatingCashflow')
         cf_positive = None
         if op_cf is not None:
             cf_positive = "是" if op_cf > 0 else "否"
             
+        # 4. 研发投入额 (从利润表中获取最新财年数据)
+        rd_val = None
+        try:
+            financials = t.financials
+            if not financials.empty:
+                for label in ['Research And Development', 'Research and Development', 'Research Development']:
+                    if label in financials.index:
+                        val = financials.loc[label].iloc[0]
+                        if not pd.isna(val):
+                            rd_val = val / 1e8  # 换算为 亿币种 (对应港股通常为亿港元/亿人民币)
+                            break
+        except Exception:
+            pass
+            
         return {
-            "profit_margin": profit_margin_val,
-            "net_assets": net_assets_val,
-            "cf_positive": cf_positive
+            "roa": roa_val,
+            "pb": pb_val,
+            "cf_positive": cf_positive,
+            "rd_expense": rd_val
         }
     except Exception:
         return {
-            "profit_margin": None,
-            "net_assets": None,
-            "cf_positive": "未知"
+            "roa": None,
+            "pb": None,
+            "cf_positive": "未知",
+            "rd_expense": None
         }
 
 # ==================== 筛选结果展示与格式化 ====================
 def display_screened_results(df_res):
     # 批量拉取额外财务指标
-    profit_margins = []
-    net_assets_list = []
+    roas = []
+    pbs = []
     cf_positives = []
+    rd_expenses = []
     
     symbols = df_res['symbol'].tolist()
     total_len = len(symbols)
     
-    progress_text = "正在安全读取财务指标 (净利率/净资产/现金流)..."
+    progress_text = "正在安全读取财务指标 (资产净利率/PB/现金流/研发投入)..."
     my_bar = st.progress(0.0, text=progress_text)
     for idx, sym in enumerate(symbols):
         my_bar.progress((idx + 1) / total_len, text=f"正在读取 {sym} 的财务数据 ({idx+1}/{total_len})...")
         metrics = fetch_extra_metrics(sym)
-        profit_margins.append(metrics["profit_margin"])
-        net_assets_list.append(metrics["net_assets"])
+        roas.append(metrics["roa"])
+        pbs.append(metrics["pb"])
         cf_positives.append(metrics["cf_positive"])
+        rd_expenses.append(metrics["rd_expense"])
     my_bar.empty()
     
     df_res = df_res.copy()
-    df_res['profit_margin'] = profit_margins
-    df_res['net_assets'] = net_assets_list
+    df_res['roa'] = roas
+    df_res['pb'] = pbs
     df_res['cf_positive'] = cf_positives
+    df_res['rd_expense'] = rd_expenses
 
     display_cols = ['symbol', 'shortName', 'regularMarketPrice', 'intradaymarketcap',
-                    'peratio.lasttwelvemonths', 'profit_margin', 'net_assets', 'cf_positive',
+                    'peratio.lasttwelvemonths', 'roa', 'pb', 'cf_positive', 'rd_expense',
                     'dayvolume', 'percentchange', 'forward_dividend_yield', 'sector']
     existing_cols = [c for c in display_cols if c in df_res.columns]
     df_display = df_res[existing_cols].copy()
@@ -645,15 +660,18 @@ def display_screened_results(df_res):
     if 'peratio.lasttwelvemonths' in df_display.columns:
         df_display['市盈率(PE)'] = df_display['peratio.lasttwelvemonths'].round(2)
         df_display.drop(columns=['peratio.lasttwelvemonths'], inplace=True)
-    if 'profit_margin' in df_display.columns:
-        df_display['净利率(%)'] = df_display['profit_margin'].round(2)
-        df_display.drop(columns=['profit_margin'], inplace=True)
-    if 'net_assets' in df_display.columns:
-        df_display['净资产(亿HKD)'] = df_display['net_assets'].round(2)
-        df_display.drop(columns=['net_assets'], inplace=True)
+    if 'roa' in df_display.columns:
+        df_display['资产净利率(ROA%)'] = df_display['roa'].round(2)
+        df_display.drop(columns=['roa'], inplace=True)
+    if 'pb' in df_display.columns:
+        df_display['股价/每股净资产(PB)'] = df_display['pb'].round(2)
+        df_display.drop(columns=['pb'], inplace=True)
     if 'cf_positive' in df_display.columns:
         df_display['现金流为正'] = df_display['cf_positive']
         df_display.drop(columns=['cf_positive'], inplace=True)
+    if 'rd_expense' in df_display.columns:
+        df_display['研发投入(亿)'] = df_display['rd_expense'].round(2)
+        df_display.drop(columns=['rd_expense'], inplace=True)
     if 'dayvolume' in df_display.columns:
         df_display['成交量(股)'] = df_display['dayvolume'].astype(int)
         df_display.drop(columns=['dayvolume'], inplace=True)
@@ -671,7 +689,7 @@ def display_screened_results(df_res):
         df_display.insert(0, '序号', range(1, len(df_display) + 1))
     
     # 重新排序一下便于好看
-    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '净利率(%)', '净资产(亿HKD)', '现金流为正', '成交量(股)', '股息收益率(%)', '行业']
+    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '资产净利率(ROA%)', '股价/每股净资产(PB)', '研发投入(亿)', '现金流为正', '成交量(股)', '股息收益率(%)', '行业']
     actual_order = [c for c in preferred_order if c in df_display.columns]
     df_display = df_display[actual_order]
     
