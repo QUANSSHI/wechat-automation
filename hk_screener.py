@@ -1325,16 +1325,37 @@ with tab3:
                     
                     # 展示关键财务基本面列
                     metric_cols = st.columns(5)
+                    
+                    # 格式化助手函数
+                    def fmt_num(val, suffix="", decimals=2):
+                        if val is None or val == 'N/A':
+                            return "N/A"
+                        try:
+                            return f"{float(val):.{decimals}f}{suffix}"
+                        except (ValueError, TypeError):
+                            return str(val)
+                            
+                    div_yield = info.get('dividendYield')
+                    if div_yield:
+                        try:
+                            div_val = float(div_yield)
+                            div_pct = div_val if div_val > 1.0 else div_val * 100
+                            div_str = f"{div_pct:.2f}%"
+                        except (ValueError, TypeError):
+                            div_str = "N/A"
+                    else:
+                        div_str = "无派息"
+                        
                     with metric_cols[0]:
-                        st.metric("最新价格", f"{info.get('currentPrice', info.get('regularMarketPrice', 'N/A'))} HKD")
+                        st.metric("最新价格", f"{fmt_num(info.get('currentPrice', info.get('regularMarketPrice')))} HKD")
                     with metric_cols[1]:
-                        st.metric("市盈率(PE Trailing)", f"{info.get('trailingPE', 'N/A')}")
+                        st.metric("市盈率(PE Trailing)", fmt_num(info.get('trailingPE')))
                     with metric_cols[2]:
-                        st.metric("远期市盈率(PE Forward)", f"{info.get('forwardPE', 'N/A')}")
+                        st.metric("远期市盈率(PE Forward)", fmt_num(info.get('forwardPE')))
                     with metric_cols[3]:
-                        st.metric("股息收益率", f"{((info.get('dividendYield', 0) or 0) * 100):.2f}%" if info.get('dividendYield') else "无派息")
+                        st.metric("股息收益率", div_str)
                     with metric_cols[4]:
-                        st.metric("贝塔系数 (Beta 5Y)", f"{info.get('beta', 'N/A')}")
+                        st.metric("贝塔系数 (Beta 5Y)", fmt_num(info.get('beta')))
                     
                     # 绘制股价走势
                     hist = ticker.history(period="1y")
