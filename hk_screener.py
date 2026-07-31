@@ -4,6 +4,7 @@ from yfinance import EquityQuery
 import pandas as pd
 import datetime
 import requests
+import json
 
 # ==================== 页面配置 ====================
 st.set_page_config(
