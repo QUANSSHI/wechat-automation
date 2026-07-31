@@ -1412,13 +1412,13 @@ with tab3:
                         except (ValueError, TypeError):
                             return str(val)
                             
-                    div_yield = info.get('dividendYield')
-                    if div_yield:
+                    div_rate = info.get('dividendRate')
+                    current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+                    if div_rate and current_price:
                         try:
-                            div_val = float(div_yield)
-                            div_pct = div_val if div_val > 1.0 else div_val * 100
+                            div_pct = (float(div_rate) / float(current_price)) * 100
                             div_str = f"{div_pct:.2f}%"
-                        except (ValueError, TypeError):
+                        except (ValueError, TypeError, ZeroDivisionError):
                             div_str = "N/A"
                     else:
                         div_str = "无派息"
