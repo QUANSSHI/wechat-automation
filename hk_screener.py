@@ -213,6 +213,8 @@ if "selected_sectors_cn" not in st.session_state:
     st.session_state.selected_sectors_cn = []
 if "buffett_filter" not in st.session_state:
     st.session_state.buffett_filter = False
+if "template_success_msg" not in st.session_state:
+    st.session_state.template_success_msg = ""
 if "last_screened_df" not in st.session_state:
     st.session_state.last_screened_df = None
 if "selected_symbol" not in st.session_state:
@@ -233,6 +235,7 @@ def reset_filters():
     st.session_state.last_screened_df = None
     st.session_state.ggt_filter = "不限"
     st.session_state.buffett_filter = False
+    st.session_state.template_success_msg = ""
 
 # ==================== 策略模板填充器 ====================
 def apply_template(template_name):
@@ -247,6 +250,7 @@ def apply_template(template_name):
         st.session_state.min_change = -50.0
         st.session_state.selected_sectors_cn = ["金融服务 (Financial Services)", "公用事业 (Utilities)", "房地产 (Real Estate)"]
         st.session_state.buffett_filter = False
+        st.session_state.template_success_msg = "已成功应用「高股息蓝筹龙头」策略！"
     elif template_name == "undervalued_growth":
         st.session_state.min_mcap = 1000000000  # 10亿 USD
         st.session_state.max_mcap = 0
@@ -258,6 +262,7 @@ def apply_template(template_name):
         st.session_state.min_change = -50.0
         st.session_state.selected_sectors_cn = ["科技 (Technology)", "医疗健康 (Healthcare)", "通讯服务 (Communication Services)"]
         st.session_state.buffett_filter = False
+        st.session_state.template_success_msg = "已成功应用「低估值成长先锋」策略！"
     elif template_name == "microcap_alpha":
         st.session_state.min_mcap = 100000000  # 1亿 USD
         st.session_state.max_mcap = 1000000000  # 10亿 USD
@@ -269,6 +274,7 @@ def apply_template(template_name):
         st.session_state.min_change = -50.0
         st.session_state.selected_sectors_cn = []
         st.session_state.buffett_filter = False
+        st.session_state.template_success_msg = "已成功应用「小市值黑马探测」策略！"
     elif template_name == "buffett_alpha":
         st.session_state.min_mcap = 1000000000  # 10亿 USD
         st.session_state.max_mcap = 0
@@ -280,6 +286,7 @@ def apply_template(template_name):
         st.session_state.min_change = -50.0
         st.session_state.selected_sectors_cn = []
         st.session_state.buffett_filter = True
+        st.session_state.template_success_msg = "已成功应用「巴菲特教你读财报选股」策略！"
 
 # ==================== 大盘核心指数行情抓取 ====================
 @st.cache_data(ttl=180)  # 3分钟缓存
@@ -786,23 +793,30 @@ sort_options = {
 }
 
 with st.container(border=True):
-    st.markdown('<div style="font-weight: 700; font-size: 1.15rem; color: var(--text-value); margin-bottom: 10px;">🔍 多因子智能筛选控制台</div>', unsafe_allow_html=True)
+    msg_html = ""
+    if st.session_state.get("template_success_msg"):
+        msg_html = f'<span style="font-size: 0.85rem; font-weight: 600; color: #10b981; margin-left: 15px; padding: 2px 10px; background: rgba(16, 185, 129, 0.12); border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.25);">✓ {st.session_state.template_success_msg}</span>'
+
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; margin-bottom: 12px;">
+        <div style="font-weight: 700; font-size: 1.15rem; color: var(--text-value); display: flex; align-items: center; gap: 8px;">
+            <span>🔍 多因子智能筛选控制台</span>
+        </div>
+        {msg_html}
+    </div>
+    """, unsafe_allow_html=True)
     
     # 快捷策略模板一键应用行 (带气泡提示描述)
     st.markdown('<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;">💡 快捷策略模板 (鼠标悬停查看策略详情)：</div>', unsafe_allow_html=True)
     c_strat1, c_strat2, c_strat3, c_strat4 = st.columns(4)
     with c_strat1:
-        if st.button("💰 高股息蓝筹龙头", key="qc_high_div", help="【高股息蓝筹龙头】\n寻找大型公用事业、金融服务、房地产领域的优质港股巨头。要求市值 >50亿 USD、市盈率 <12 且股息率 >6%。", on_click=apply_template, args=("high_div",), use_container_width=True):
-            st.success("已成功应用「高股息蓝筹龙头」策略！")
+        st.button("💰 高股息蓝筹龙头", key="qc_high_div", help="【高股息蓝筹龙头】\n寻找大型公用事业、金融服务、房地产领域的优质港股巨头。要求市值 >50亿 USD、市盈率 <12 且股息率 >6%。", on_click=apply_template, args=("high_div",), use_container_width=True)
     with c_strat2:
-        if st.button("🚀 低估值成长先锋", key="qc_growth", help="【低估值成长先锋】\n聚焦中大型科技股、生物医药、通讯行业。寻找估值合理（PE <22）、市值 >10亿 USD 且日均流动性较强的成长股。", on_click=apply_template, args=("undervalued_growth",), use_container_width=True):
-            st.success("已成功应用「低估值成长先锋」策略！")
+        st.button("🚀 低估值成长先锋", key="qc_growth", help="【低估值成长先锋】\n聚焦中大型科技股、生物医药、通讯行业。寻找估值合理（PE <22）、市值 >10亿 USD 且日均流动性较强的成长股。", on_click=apply_template, args=("undervalued_growth",), use_container_width=True)
     with c_strat3:
-        if st.button("🦄 小市值黑马探测", key="qc_microcap", help="【小市值黑马探测】\n在小市值（1亿 ~ 10亿美元）区间内，挑选估值极低（PE <10）、价格坚实且兼具稳定分红（股息率 >2%）的小盘黑马。", on_click=apply_template, args=("microcap_alpha",), use_container_width=True):
-            st.success("已成功应用「小市值黑马探测」策略！")
+        st.button("🦄 小市值黑马探测", key="qc_microcap", help="【小市值黑马探测】\n在小市值（1亿 ~ 10亿美元）区间内，挑选估值极低（PE <10）、价格坚实且兼具稳定分红（股息率 >2%）的小盘黑马。", on_click=apply_template, args=("microcap_alpha",), use_container_width=True)
     with c_strat4:
-        if st.button("📖 巴菲特读财报选股", key="qc_buffett", help="【巴菲特教你读财报选股】\n应用巴菲特护城河财务法则：毛利率 >40%、净利率 >20%、销管费 <30%、ROE >15%、负债可在 4 年内还清、资本支出 <25%。", on_click=apply_template, args=("buffett_alpha",), use_container_width=True):
-            st.success("已成功应用「巴菲特教你读财报」策略！")
+        st.button("📖 巴菲特读财报选股", key="qc_buffett", help="【巴菲特教你读财报选股】\n应用巴菲特护城河财务法则：毛利率 >40%、净利率 >20%、销管费 <30%、ROE >15%、负债可在 4 年内还清、资本支出 <25%。", on_click=apply_template, args=("buffett_alpha",), use_container_width=True)
 
     st.markdown('<hr style="margin: 12px 0; border: 0; border-top: 1px solid var(--card-border);"/>', unsafe_allow_html=True)
 
