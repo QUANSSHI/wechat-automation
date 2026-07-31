@@ -150,6 +150,17 @@ st.markdown("""
         box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5) !important;
         transform: translateY(-1px);
     }
+    
+    /* 隐藏 Streamlit 默认的顶部 Deploy 按钮和主菜单，提升界面专业感 */
+    header[data-testid="stHeader"], [data-testid="stHeader"] {
+        display: none !important;
+    }
+    div.stAppDeployButton {
+        display: none !important;
+    }
+    footer {
+        visibility: hidden !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
