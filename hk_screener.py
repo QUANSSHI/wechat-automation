@@ -634,11 +634,10 @@ def fetch_extra_metrics(symbol):
 
 # ==================== 获取行业平均市盈率 ====================
 @st.cache_data(ttl=3600)  # 缓存 1 小时
-def fetch_industry_average_pe(sector_en):
+def fetch_industry_average_pe(sector_en, region='hk'):
     try:
-        from yfinance import EquityQuery
         q = EquityQuery('and', [
-            EquityQuery('eq', ['region', 'hk']),
+            EquityQuery('eq', ['region', region]),
             EquityQuery('eq', ['sector', sector_en]),
             EquityQuery('gt', ['peratio.lasttwelvemonths', 0])
         ])
@@ -654,6 +653,23 @@ def fetch_industry_average_pe(sector_en):
     except Exception:
         pass
     return None
+
+def fetch_multi_market_pe(sector_en):
+    """并发获取港股/美股/A股三个市场的行业平均 PE"""
+    results = {'hk': None, 'us': None, 'cn': None}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(fetch_industry_average_pe, sector_en, 'hk'): 'hk',
+            executor.submit(fetch_industry_average_pe, sector_en, 'us'): 'us',
+            executor.submit(fetch_industry_average_pe, sector_en, 'cn'): 'cn',
+        }
+        for future in as_completed(futures):
+            region = futures[future]
+            try:
+                results[region] = future.result()
+            except Exception:
+                pass
+    return results
 
 # ==================== 缓存单股详情及行情数据 ====================
 @st.cache_data(ttl=3600)  # 缓存 1 小时
@@ -1418,36 +1434,69 @@ with tab3:
                     with metric_cols[4]:
                         st.metric("贝塔系数 (Beta 5Y)", fmt_num(info.get('beta')))
                     
-                    # ===== 行业平均市盈率对比横幅 =====
+                    # ===== 三大市场行业平均市盈率对比横幅 =====
                     stock_pe = info.get('trailingPE')
-                    industry_avg_pe = fetch_industry_average_pe(sector_en) if sector_en and sector_en != 'N/A' else None
+                    if sector_en and sector_en != 'N/A':
+                        multi_pe = fetch_multi_market_pe(sector_en)
+                    else:
+                        multi_pe = {'hk': None, 'us': None, 'cn': None}
                     
-                    if industry_avg_pe is not None:
+                    has_any_pe = any(v is not None for v in multi_pe.values())
+                    
+                    if has_any_pe:
+                        # 构造个股 PE 数值
+                        pe_val = None
                         if stock_pe is not None:
                             try:
                                 pe_val = float(stock_pe)
-                                diff = pe_val - industry_avg_pe
-                                diff_pct = (diff / industry_avg_pe) * 100 if industry_avg_pe != 0 else 0
-                                if diff < 0:
-                                    verdict = "低于行业均值"
-                                    verdict_color = "#10b981"
-                                    verdict_icon = "🟢"
-                                    verdict_label = "估值偏低"
-                                elif diff_pct <= 15:
-                                    verdict = "接近行业均值"
-                                    verdict_color = "#f59e0b"
-                                    verdict_icon = "🟡"
-                                    verdict_label = "估值合理"
-                                else:
-                                    verdict = "高于行业均值"
-                                    verdict_color = "#ef4444"
-                                    verdict_icon = "🔴"
-                                    verdict_label = "估值偏高"
-                                st.markdown(f"""<div style="margin: 16px 0; padding: 14px 20px; border-radius: 10px; background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(59,130,246,0.08)); border: 1px solid rgba(168,85,247,0.25); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;"><div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 1.6rem;">📊</span><div><span style="font-size: 0.8rem; color: var(--text-muted);">港股{sector_cn}行业平均市盈率</span><br/><span style="font-size: 1.35rem; font-weight: 800; color: #a855f7;">{industry_avg_pe:.2f}x</span></div></div><div style="display: flex; align-items: center; gap: 12px;"><div><span style="font-size: 0.8rem; color: var(--text-muted);">当前个股市盈率</span><br/><span style="font-size: 1.35rem; font-weight: 800; color: var(--text-value);">{pe_val:.2f}x</span></div></div><div style="display: flex; align-items: center; gap: 12px;"><div><span style="font-size: 0.8rem; color: var(--text-muted);">偏离度</span><br/><span style="font-size: 1.35rem; font-weight: 800; color: {verdict_color};">{diff_pct:+.1f}%</span></div></div><div style="padding: 6px 14px; border-radius: 20px; background: {verdict_color}22; border: 1.5px solid {verdict_color}; display: flex; align-items: center; gap: 6px;"><span style="font-size: 1.1rem;">{verdict_icon}</span><span style="font-size: 0.9rem; font-weight: 700; color: {verdict_color};">{verdict_label} · {verdict}</span></div></div>""", unsafe_allow_html=True)
                             except (ValueError, TypeError):
                                 pass
-                        else:
-                            st.markdown(f"""<div style="margin: 16px 0; padding: 14px 20px; border-radius: 10px; background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(59,130,246,0.08)); border: 1px solid rgba(168,85,247,0.25); display: flex; align-items: center; gap: 12px;"><span style="font-size: 1.6rem;">📊</span><div><span style="font-size: 0.8rem; color: var(--text-muted);">港股{sector_cn}行业平均市盈率</span><br/><span style="font-size: 1.35rem; font-weight: 800; color: #a855f7;">{industry_avg_pe:.2f}x</span></div><div style="margin-left: 20px; font-size: 0.85rem; color: var(--text-muted);">该个股当前无有效 PE 数据，无法进行对比</div></div>""", unsafe_allow_html=True)
+                        
+                        def pe_verdict(pe_val, avg_pe):
+                            """返回 (偏离度%, 颜色, 图标, 标签)"""
+                            if pe_val is None or avg_pe is None:
+                                return None, None, None, None
+                            diff_pct = ((pe_val - avg_pe) / avg_pe) * 100 if avg_pe != 0 else 0
+                            if pe_val < avg_pe:
+                                return diff_pct, "#10b981", "🟢", "偏低"
+                            elif diff_pct <= 15:
+                                return diff_pct, "#f59e0b", "🟡", "合理"
+                            else:
+                                return diff_pct, "#ef4444", "🔴", "偏高"
+                        
+                        market_configs = [
+                            ('hk', '🇭🇰 港股', '#a855f7'),
+                            ('us', '🇺🇸 美股', '#3b82f6'),
+                            ('cn', '🇨🇳 A股', '#ef4444'),
+                        ]
+                        
+                        # 渲染标题行
+                        st.markdown(f"""<div style="margin: 12px 0 6px 0; display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.3rem;">📊</span>
+                            <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-value);">{sector_cn}行业市盈率 · 全球三大市场横向对比</span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 8px;">当前个股 PE: <b style="color: var(--text-value);">{f'{pe_val:.2f}x' if pe_val else 'N/A'}</b></span>
+                        </div>""", unsafe_allow_html=True)
+                        
+                        # 渲染三栏对比卡片
+                        pe_cols = st.columns(3)
+                        for idx, (region_key, market_label, accent_color) in enumerate(market_configs):
+                            avg_pe = multi_pe.get(region_key)
+                            with pe_cols[idx]:
+                                if avg_pe is not None:
+                                    diff_pct, v_color, v_icon, v_label = pe_verdict(pe_val, avg_pe)
+                                    if diff_pct is not None:
+                                        badge_html = f'<div style="margin-top:8px;padding:4px 10px;border-radius:14px;background:{v_color}18;border:1.5px solid {v_color};display:inline-flex;align-items:center;gap:4px;"><span style="font-size:0.85rem;">{v_icon}</span><span style="font-size:0.78rem;font-weight:700;color:{v_color};">估值{v_label} {diff_pct:+.1f}%</span></div>'
+                                    else:
+                                        badge_html = '<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);">个股无PE，无法对比</div>'
+                                    st.markdown(f"""<div style="padding:14px 16px;border-radius:10px;background:linear-gradient(135deg, {accent_color}12, {accent_color}06);border:1px solid {accent_color}30;min-height:110px;">
+                                        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">{market_label}行业均值PE</div>
+                                        <div style="font-size:1.5rem;font-weight:800;color:{accent_color};">{avg_pe:.2f}<span style="font-size:0.9rem;font-weight:400;color:var(--text-muted);">x</span></div>
+                                        {badge_html}
+                                    </div>""", unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"""<div style="padding:14px 16px;border-radius:10px;background:linear-gradient(135deg, {accent_color}08, {accent_color}04);border:1px dashed {accent_color}25;min-height:110px;display:flex;align-items:center;justify-content:center;">
+                                        <span style="font-size:0.85rem;color:var(--text-muted);">{market_label} 暂无数据</span>
+                                    </div>""", unsafe_allow_html=True)
 
                     # 绘制股价走势
                     if not hist.empty:
