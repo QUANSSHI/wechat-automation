@@ -566,6 +566,8 @@ def fetch_extra_metrics(symbol):
         rd_val = None
         # 5. 无形资产/净资产 (%)
         intangible_ratio = None
+        # 6. 现金/净资产 (%)
+        cash_ratio = None
         
         try:
             financials = t.financials
@@ -588,6 +590,15 @@ def fetch_extra_metrics(symbol):
                             intangibles = val
                             break
                             
+                # 寻找现金
+                cash = 0
+                for label in ['Cash And Cash Equivalents', 'Cash Cash Equivalents And Short Term Investments', 'Cash']:
+                    if label in balance_sheet.index:
+                        val = balance_sheet.loc[label].iloc[0]
+                        if not pd.isna(val):
+                            cash = val
+                            break
+                            
                 # 寻找净资产
                 net_assets = None
                 for label in ['Stockholders Equity', 'Common Stock Equity', 'Total Equity Gross Minority Interest']:
@@ -599,6 +610,7 @@ def fetch_extra_metrics(symbol):
                             
                 if net_assets and net_assets > 0:
                     intangible_ratio = (intangibles / net_assets) * 100
+                    cash_ratio = (cash / net_assets) * 100
         except Exception:
             pass
             
@@ -607,7 +619,8 @@ def fetch_extra_metrics(symbol):
             "pb": pb_val,
             "cf_positive": cf_positive,
             "rd_expense": rd_val,
-            "intangible_ratio": intangible_ratio
+            "intangible_ratio": intangible_ratio,
+            "cash_ratio": cash_ratio
         }
     except Exception:
         return {
@@ -615,7 +628,8 @@ def fetch_extra_metrics(symbol):
             "pb": None,
             "cf_positive": "未知",
             "rd_expense": None,
-            "intangible_ratio": None
+            "intangible_ratio": None,
+            "cash_ratio": None
         }
 
 # ==================== 缓存单股详情及行情数据 ====================
@@ -643,11 +657,12 @@ def display_screened_results(df_res):
     cf_positives = []
     rd_expenses = []
     intangible_ratios = []
+    cash_ratios = []
     
     symbols = df_res['symbol'].tolist()
     total_len = len(symbols)
     
-    progress_text = "正在安全读取财务指标 (资产净利率/PB/研发投入/无形资产/现金流)..."
+    progress_text = "正在安全读取财务指标 (资产净利率/PB/研发投入/无形资产/现金占比/现金流)..."
     my_bar = st.progress(0.0, text=progress_text)
     
     # 使用 ThreadPoolExecutor 多线程并发拉取，大幅提升加载速度 (从 20s+ 缩短至 2s)
@@ -667,7 +682,8 @@ def display_screened_results(df_res):
                     "pb": None,
                     "cf_positive": "未知",
                     "rd_expense": None,
-                    "intangible_ratio": None
+                    "intangible_ratio": None,
+                    "cash_ratio": None
                 }
     my_bar.empty()
     
@@ -677,13 +693,15 @@ def display_screened_results(df_res):
             "pb": None,
             "cf_positive": "未知",
             "rd_expense": None,
-            "intangible_ratio": None
+            "intangible_ratio": None,
+            "cash_ratio": None
         })
         roas.append(metrics["roa"])
         pbs.append(metrics["pb"])
         cf_positives.append(metrics["cf_positive"])
         rd_expenses.append(metrics["rd_expense"])
         intangible_ratios.append(metrics["intangible_ratio"])
+        cash_ratios.append(metrics["cash_ratio"])
         
     df_res = df_res.copy()
     df_res['roa'] = roas
@@ -691,9 +709,10 @@ def display_screened_results(df_res):
     df_res['cf_positive'] = cf_positives
     df_res['rd_expense'] = rd_expenses
     df_res['intangible_ratio'] = intangible_ratios
+    df_res['cash_ratio'] = cash_ratios
 
     display_cols = ['symbol', 'shortName', 'regularMarketPrice', 'intradaymarketcap',
-                    'peratio.lasttwelvemonths', 'roa', 'pb', 'rd_expense', 'intangible_ratio', 'cf_positive',
+                    'peratio.lasttwelvemonths', 'roa', 'pb', 'rd_expense', 'intangible_ratio', 'cash_ratio', 'cf_positive',
                     'dayvolume', 'percentchange', 'forward_dividend_yield', 'sector']
     existing_cols = [c for c in display_cols if c in df_res.columns]
     df_display = df_res[existing_cols].copy()
@@ -747,6 +766,9 @@ def display_screened_results(df_res):
     if 'intangible_ratio' in df_display.columns:
         df_display['无形资产/净资产(%)'] = df_display['intangible_ratio'].round(2)
         df_display.drop(columns=['intangible_ratio'], inplace=True)
+    if 'cash_ratio' in df_display.columns:
+        df_display['现金/净资产(%)'] = df_display['cash_ratio'].round(2)
+        df_display.drop(columns=['cash_ratio'], inplace=True)
     if 'cf_positive' in df_display.columns:
         df_display['现金流为正'] = df_display['cf_positive']
         df_display.drop(columns=['cf_positive'], inplace=True)
@@ -767,7 +789,7 @@ def display_screened_results(df_res):
         df_display.insert(0, '序号', range(1, len(df_display) + 1))
     
     # 重新排序一下便于好看
-    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '资产净利率(ROA%)', '股价/每股净资产(PB)', '研发投入(亿)', '无形资产/净资产(%)', '现金流为正', '成交量(股)', '股息收益率(%)', '行业']
+    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '资产净利率(ROA%)', '股价/每股净资产(PB)', '研发投入(亿)', '无形资产/净资产(%)', '现金/净资产(%)', '现金流为正', '成交量(股)', '股息收益率(%)', '行业']
     actual_order = [c for c in preferred_order if c in df_display.columns]
     df_display = df_display[actual_order]
     
