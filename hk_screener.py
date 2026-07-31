@@ -18,15 +18,56 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Noto+Sans+SC:wght@300;400;700&display=swap');
     
+    :root {
+        --bg-gradient: linear-gradient(135deg, #090a0f 0%, #121520 100%);
+        --card-bg: rgba(30, 41, 59, 0.45);
+        --card-border: rgba(255, 255, 255, 0.08);
+        --text-main: #e2e8f0;
+        --text-value: #ffffff;
+        --text-muted: #a0aec0;
+        --sidebar-bg: #0b0c10;
+        --sidebar-border: rgba(255, 255, 255, 0.05);
+        --index-card-bg: rgba(15, 23, 42, 0.6);
+        --news-link: #3b82f6;
+        --accent-pink: #ec4899;
+        --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+        --hover-border: rgba(99, 102, 241, 0.4);
+        --hover-shadow: 0 8px 32px 0 rgba(99, 102, 241, 0.15);
+    }
+    
+    @media (prefers-color-scheme: light) {
+        :root {
+            --bg-gradient: linear-gradient(135deg, #f0f2f5 0%, #e4e8ec 100%);
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --card-border: rgba(0, 0, 0, 0.07);
+            --text-main: #374151;
+            --text-value: #111827;
+            --text-muted: #4b5563;
+            --sidebar-bg: #ffffff;
+            --sidebar-border: rgba(0, 0, 0, 0.08);
+            --index-card-bg: rgba(255, 255, 255, 0.95);
+            --news-link: #1d4ed8;
+            --accent-pink: #db2777;
+            --shadow: 0 8px 24px 0 rgba(148, 163, 184, 0.1);
+            --hover-border: rgba(99, 102, 241, 0.35);
+            --hover-shadow: 0 8px 24px 0 rgba(99, 102, 241, 0.15);
+        }
+    }
+    
     /* 核心字体与背景设置 */
     html, body, [class*="css"] {
         font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
     }
     
     /* 主体背景渐变与文字排版 */
+    .stApp {
+        background: var(--bg-gradient) !important;
+        color: var(--text-main);
+    }
+    
     .main {
-        background: linear-gradient(135deg, #090a0f 0%, #121520 100%);
-        color: #e2e8f0;
+        background: transparent !important;
+        color: var(--text-main);
     }
     
     /* 渐变标题 */
@@ -41,24 +82,24 @@ st.markdown("""
     
     /* 毛玻璃高阶卡片 */
     .premium-card {
-        background: rgba(30, 41, 59, 0.45);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
         border-radius: 16px;
         padding: 22px;
         margin-bottom: 20px;
         backdrop-filter: blur(10px);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+        box-shadow: var(--shadow);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .premium-card:hover {
-        border-color: rgba(99, 102, 241, 0.4);
-        box-shadow: 0 8px 32px 0 rgba(99, 102, 241, 0.15);
+        border-color: var(--hover-border);
+        box-shadow: var(--hover-shadow);
         transform: translateY(-2px);
     }
     
     /* 大盘指数卡片特殊样式 */
     .index-card {
-        background: rgba(15, 23, 42, 0.6);
+        background: var(--index-card-bg);
         border-left: 4px solid #6366f1;
     }
     
@@ -66,7 +107,7 @@ st.markdown("""
     .metric-value {
         font-size: 1.8rem;
         font-weight: 700;
-        color: #ffffff;
+        color: var(--text-value);
         margin: 5px 0;
     }
     .metric-delta-pos {
@@ -88,8 +129,8 @@ st.markdown("""
     
     /* 侧边栏样式微调 */
     section[data-testid="stSidebar"] {
-        background-color: #0b0c10 !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        background-color: var(--sidebar-bg) !important;
+        border-right: 1px solid var(--sidebar-border);
     }
     
     /* 按钮样式增强 */
@@ -668,7 +709,7 @@ def render_heatmap():
 col_title, col_logo = st.columns([5, 1])
 with col_title:
     st.markdown('<div class="gradient-title">HKScreener Pro</div>', unsafe_allow_html=True)
-    st.markdown("<p style='font-size:1.0rem; color:#a0aec0;'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:1.0rem; color:var(--text-muted);'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
 
 # ==================== 侧边栏：多因子筛选条件配置 ====================
 st.sidebar.markdown("### 🔍 多因子筛选器")
@@ -743,7 +784,7 @@ with tab1:
                 sign = "+" if val['pct'] >= 0 else ""
                 st.markdown(f"""
                 <div class="premium-card index-card">
-                    <div style="font-size: 0.85rem; color: #a0aec0; font-weight: 600; text-transform: uppercase;">{name}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">{name}</div>
                     <div class="metric-value">{val['price']:,.2f}</div>
                     <div class="{color_class}">{arrow} {sign}{val['change']:,.2f} ({sign}{val['pct']:.2f}%)</div>
                 </div>
@@ -751,7 +792,7 @@ with tab1:
             else:
                 st.markdown(f"""
                 <div class="premium-card index-card">
-                    <div style="font-size: 0.85rem; color: #a0aec0; font-weight: 600;">{name}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">{name}</div>
                     <div class="metric-value">休市中/获取失败</div>
                     <div class="metric-delta-pos">--</div>
                 </div>
@@ -759,7 +800,7 @@ with tab1:
 
     st.markdown("---")
     st.markdown("### 📊 当日港股资金集中度矩阵图 (资金规模 & 涨跌分布)")
-    st.markdown("<p style='font-size:0.9rem; color:#a0aec0;'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看主力资金净流入、最新股价及成交额详情。</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:0.9rem; color:var(--text-muted);'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看主力资金净流入、最新股价及成交额详情。</p>", unsafe_allow_html=True)
     render_heatmap()
 
     st.markdown("---")
@@ -772,7 +813,7 @@ with tab1:
         st.markdown("""
         <div class="premium-card" style="height: 175px;">
             <div style="font-weight: 700; font-size: 1.15rem; color: #6366f1;">💰 高股息蓝筹龙头</div>
-            <div style="font-size: 0.85rem; color: #a0aec0; margin: 10px 0; line-height: 1.4;">
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; line-height: 1.4;">
                 寻找大型公用事业、金融服务、房地产领域的优质港股巨头。要求市值 <b>>50亿 USD</b>、市盈率 <b>&lt;12</b> 且股息率 <b>>6%</b>。
             </div>
         </div>
@@ -784,7 +825,7 @@ with tab1:
         st.markdown("""
         <div class="premium-card" style="height: 175px;">
             <div style="font-weight: 700; font-size: 1.15rem; color: #a855f7;">🚀 低估值成长先锋</div>
-            <div style="font-size: 0.85rem; color: #a0aec0; margin: 10px 0; line-height: 1.4;">
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; line-height: 1.4;">
                 聚焦中大型科技股、生物医药、通讯行业。寻找估值合理（PE <b>&lt;22</b>）、市值 <b>>10亿 USD</b> 且日均流动性较强的成长股。
             </div>
         </div>
@@ -799,7 +840,7 @@ with tab1:
         st.markdown("""
         <div class="premium-card" style="height: 175px;">
             <div style="font-weight: 700; font-size: 1.15rem; color: #ec4899;">🦄 小市值黑马探测</div>
-            <div style="font-size: 0.85rem; color: #a0aec0; margin: 10px 0; line-height: 1.4;">
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; line-height: 1.4;">
                 在小市值（<b>1亿 ~ 10亿美元</b>）区间内，挑选估值极低（PE <b>&lt;10</b>）、价格坚实且兼具稳定分红（股息率 <b>>2%</b>）的小盘黑马。
             </div>
         </div>
@@ -811,7 +852,7 @@ with tab1:
         st.markdown("""
         <div class="premium-card" style="height: 175px;">
             <div style="font-weight: 700; font-size: 1.15rem; color: #eab308;">📖 巴菲特教你读财报选股</div>
-            <div style="font-size: 0.85rem; color: #a0aec0; margin: 10px 0; line-height: 1.4;">
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; line-height: 1.4;">
                 应用巴菲特护城河财务法则：毛利率<b>>40%</b>、净利率<b>>20%</b>、销管费<b>&lt;30%</b>、ROE<b>>15%</b>、负债可在<b>4年内还清</b>、资本支出<b>&lt;25%</b>。
             </div>
         </div>
@@ -966,8 +1007,8 @@ with tab3:
                     # 显示高品质股票名片
                     st.markdown(f"""
                     <div class="premium-card" style="border-left: 4px solid #a855f7;">
-                        <span style="font-size: 1.25rem; font-weight: 700; color:#ffffff;">{info.get('shortName')} ({selected_symbol})</span> | 
-                        <span style="color:#a0aec0;">行业: {sector_cn} - {info.get('industry', 'N/A')}</span>
+                        <span style="font-size: 1.25rem; font-weight: 700; color: var(--text-value);">{info.get('shortName')} ({selected_symbol})</span> | 
+                        <span style="color: var(--text-muted);">行业: {sector_cn} - {info.get('industry', 'N/A')}</span>
                     </div>
                     """, unsafe_allow_html=True)
                     
@@ -1033,11 +1074,11 @@ with tab4:
                 
                 # 使用 st.html 渲染原生 HTML 卡片，避免 Markdown 语法和闭合标签产生冲突
                 card_html = f"""<div class="premium-card">
-<div style="font-size:0.8rem; color:#a0aec0; margin-bottom:5px; display:flex; justify-content:space-between;">
+<div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:5px; display:flex; justify-content:space-between;">
 <span>📰 {publisher}</span>
 <span>⏱️ {pub_time}</span>
 </div>
-<a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:#3b82f6; font-size:1.0rem; display:block; margin-bottom:8px;">{title}</a>
+<a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:var(--news-link); font-size:1.0rem; display:block; margin-bottom:8px;">{title}</a>
 <div>
 <span style="background:rgba(99, 102, 241, 0.15); color:#a855f7; font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:600;">{news_symbol}</span>
 </div>
@@ -1056,7 +1097,7 @@ with tab4:
             screened_tickers = st.session_state.last_screened_df['symbol'].head(5).tolist()
             
         if screened_tickers:
-            st.markdown(f"<p style='font-size:0.85rem; color:#a0aec0;'>正在聚合以下选股池中前 5 只股票的最新消息: {', '.join(screened_tickers)}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:0.85rem; color:var(--text-muted);'>正在聚合以下选股池中前 5 只股票的最新消息: {', '.join(screened_tickers)}</p>", unsafe_allow_html=True)
             aggregated_news = []
             seen_uuids = set()
             
@@ -1102,14 +1143,14 @@ with tab4:
                             pub_time = datetime.datetime.fromtimestamp(pub_time_raw).strftime('%Y-%m-%d %H:%M')
                     
                     # 使用 st.html 渲染原生 HTML 卡片
-                    card_html = f"""<div class="premium-card" style="border-left: 2px solid #ec4899;">
-<div style="font-size:0.8rem; color:#a0aec0; margin-bottom:5px; display:flex; justify-content:space-between;">
+                    card_html = f"""<div class="premium-card" style="border-left: 2px solid var(--accent-pink);">
+<div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:5px; display:flex; justify-content:space-between;">
 <span>📰 {publisher}</span>
 <span>⏱️ {pub_time}</span>
 </div>
-<a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:#ec4899; font-size:1.0rem; display:block; margin-bottom:8px;">{title}</a>
+<a href="{link}" target="_blank" style="text-decoration:none; font-weight:600; color:var(--accent-pink); font-size:1.0rem; display:block; margin-bottom:8px;">{title}</a>
 <div>
-<span style="background:rgba(236, 72, 153, 0.15); color:#ec4899; font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:600;">{associated_ticker}</span>
+<span style="background:rgba(236, 72, 153, 0.15); color:var(--accent-pink); font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:600;">{associated_ticker}</span>
 </div>
 </div>"""
                     st.html(card_html)
