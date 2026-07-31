@@ -313,6 +313,37 @@ def fetch_indices():
             data[name] = {"price": 0.0, "change": 0.0, "pct": 0.0}
     return data
 
+# ==================== 港股简称汉化映射抓取 ====================
+@st.cache_data(ttl=86400)  # 24小时缓存
+def get_hk_stock_names_cn():
+    url = "https://push2.eastmoney.com/api/qt/clist/get"
+    params = {
+        "pn": 1,
+        "pz": 3000,  # 获取前 3000 只港股，覆盖所有主要港股
+        "po": 1,
+        "np": 1,
+        "fltt": 2,
+        "invt": 2,
+        "fs": "m:128+t:3,m:128+t:4",  # 港股主板与创业板
+        "fields": "f12,f14"  # f12是代码, f14是名称
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/91.0.4472.124"
+    }
+    name_map = {}
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=5)
+        res_json = response.json()
+        diff = res_json.get('data', {}).get('diff', [])
+        for item in diff:
+            code = item.get('f12')
+            name = item.get('f14')
+            if code and name:
+                name_map[code] = name
+    except Exception:
+        pass
+    return name_map
+
 # ==================== 个股新闻抓取 ====================
 @st.cache_data(ttl=600)  # 10分钟缓存
 def fetch_stock_news(symbol):
@@ -464,6 +495,16 @@ def display_screened_results(df_res):
     existing_cols = [c for c in display_cols if c in df_res.columns]
     df_display = df_res[existing_cols].copy()
     
+    # 汉化股票简称
+    name_map = get_hk_stock_names_cn()
+    if 'shortName' in df_display.columns:
+        def translate_name(row):
+            sym = row['symbol']
+            code_num = sym.split('.')[0]
+            formatted_code = code_num.zfill(5)
+            return name_map.get(formatted_code, row['shortName'])
+        df_display['shortName'] = df_display.apply(translate_name, axis=1)
+    
     if 'sector' in df_display.columns:
         inv_sector_map = {
             "Technology": "科技",
@@ -507,8 +548,12 @@ def display_screened_results(df_res):
     
     df_display.rename(columns=rename_dict, inplace=True)
     
+    # 增加序号列
+    if len(df_display) > 0:
+        df_display.insert(0, '序号', range(1, len(df_display) + 1))
+    
     # 重新排序一下便于好看
-    preferred_order = ['股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '成交量(股)', '股息收益率(%)', '行业']
+    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '成交量(股)', '股息收益率(%)', '行业']
     actual_order = [c for c in preferred_order if c in df_display.columns]
     df_display = df_display[actual_order]
     
@@ -987,9 +1032,18 @@ with tab3:
     if st.session_state.last_screened_df is not None and not st.session_state.last_screened_df.empty:
         symbol_list = st.session_state.last_screened_df['symbol'].tolist()
     
+    name_map = get_hk_stock_names_cn()
+    def format_symbol(sym):
+        if sym == "-- 请选择 --":
+            return sym
+        code_num = sym.split('.')[0]
+        formatted_code = code_num.zfill(5)
+        cn_name = name_map.get(formatted_code, "")
+        return f"{sym} ({cn_name})" if cn_name else sym
+
     col_sel, col_input = st.columns([3, 2])
     with col_sel:
-        select_sym = st.selectbox("从筛选出的列表中选择股票", options=["-- 请选择 --"] + symbol_list)
+        select_sym = st.selectbox("从筛选出的列表中选择股票", options=["-- 请选择 --"] + symbol_list, format_func=format_symbol)
     with col_input:
         custom_sym = st.text_input("或者手动输入任意港股代码 (格式如: 0700.HK, 9988.HK)")
     
@@ -1022,10 +1076,14 @@ with tab3:
                     }
                     sector_en = info.get('sector', 'N/A')
                     sector_cn = inv_sector_map.get(sector_en, sector_en)
+                    # 翻译简称
+                    code_num = selected_symbol.split('.')[0]
+                    formatted_code = code_num.zfill(5)
+                    cn_name = name_map.get(formatted_code, info.get('shortName', selected_symbol))
                     # 显示高品质股票名片
                     st.markdown(f"""
                     <div class="premium-card" style="border-left: 4px solid #a855f7;">
-                        <span style="font-size: 1.25rem; font-weight: 700; color: var(--text-value);">{info.get('shortName')} ({selected_symbol})</span> | 
+                        <span style="font-size: 1.25rem; font-weight: 700; color: var(--text-value);">{cn_name} ({selected_symbol})</span> | 
                         <span style="color: var(--text-muted);">行业: {sector_cn} - {info.get('industry', 'N/A')}</span>
                     </div>
                     """, unsafe_allow_html=True)
