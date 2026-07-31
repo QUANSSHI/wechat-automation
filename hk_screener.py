@@ -563,6 +563,9 @@ def fetch_extra_metrics(symbol):
             
         # 4. 研发投入额 (从利润表中获取最新财年数据)
         rd_val = None
+        # 5. 无形资产/净资产 (%)
+        intangible_ratio = None
+        
         try:
             financials = t.financials
             if not financials.empty:
@@ -572,6 +575,29 @@ def fetch_extra_metrics(symbol):
                         if not pd.isna(val):
                             rd_val = val / 1e8  # 换算为 亿币种 (对应港股通常为亿港元/亿人民币)
                             break
+                            
+            balance_sheet = t.balance_sheet
+            if not balance_sheet.empty:
+                # 寻找无形资产
+                intangibles = 0
+                for label in ['Goodwill And Other Intangible Assets', 'Other Intangible Assets', 'Goodwill']:
+                    if label in balance_sheet.index:
+                        val = balance_sheet.loc[label].iloc[0]
+                        if not pd.isna(val):
+                            intangibles = val
+                            break
+                            
+                # 寻找净资产
+                net_assets = None
+                for label in ['Stockholders Equity', 'Common Stock Equity', 'Total Equity Gross Minority Interest']:
+                    if label in balance_sheet.index:
+                        val = balance_sheet.loc[label].iloc[0]
+                        if not pd.isna(val) and val != 0:
+                            net_assets = val
+                            break
+                            
+                if net_assets and net_assets > 0:
+                    intangible_ratio = (intangibles / net_assets) * 100
         except Exception:
             pass
             
@@ -579,14 +605,16 @@ def fetch_extra_metrics(symbol):
             "roa": roa_val,
             "pb": pb_val,
             "cf_positive": cf_positive,
-            "rd_expense": rd_val
+            "rd_expense": rd_val,
+            "intangible_ratio": intangible_ratio
         }
     except Exception:
         return {
             "roa": None,
             "pb": None,
             "cf_positive": "未知",
-            "rd_expense": None
+            "rd_expense": None,
+            "intangible_ratio": None
         }
 
 # ==================== 筛选结果展示与格式化 ====================
@@ -596,11 +624,12 @@ def display_screened_results(df_res):
     pbs = []
     cf_positives = []
     rd_expenses = []
+    intangible_ratios = []
     
     symbols = df_res['symbol'].tolist()
     total_len = len(symbols)
     
-    progress_text = "正在安全读取财务指标 (资产净利率/PB/现金流/研发投入)..."
+    progress_text = "正在安全读取财务指标 (资产净利率/PB/研发投入/无形资产/现金流)..."
     my_bar = st.progress(0.0, text=progress_text)
     for idx, sym in enumerate(symbols):
         my_bar.progress((idx + 1) / total_len, text=f"正在读取 {sym} 的财务数据 ({idx+1}/{total_len})...")
@@ -609,6 +638,7 @@ def display_screened_results(df_res):
         pbs.append(metrics["pb"])
         cf_positives.append(metrics["cf_positive"])
         rd_expenses.append(metrics["rd_expense"])
+        intangible_ratios.append(metrics["intangible_ratio"])
     my_bar.empty()
     
     df_res = df_res.copy()
@@ -616,9 +646,10 @@ def display_screened_results(df_res):
     df_res['pb'] = pbs
     df_res['cf_positive'] = cf_positives
     df_res['rd_expense'] = rd_expenses
+    df_res['intangible_ratio'] = intangible_ratios
 
     display_cols = ['symbol', 'shortName', 'regularMarketPrice', 'intradaymarketcap',
-                    'peratio.lasttwelvemonths', 'roa', 'pb', 'cf_positive', 'rd_expense',
+                    'peratio.lasttwelvemonths', 'roa', 'pb', 'rd_expense', 'intangible_ratio', 'cf_positive',
                     'dayvolume', 'percentchange', 'forward_dividend_yield', 'sector']
     existing_cols = [c for c in display_cols if c in df_res.columns]
     df_display = df_res[existing_cols].copy()
@@ -666,12 +697,15 @@ def display_screened_results(df_res):
     if 'pb' in df_display.columns:
         df_display['股价/每股净资产(PB)'] = df_display['pb'].round(2)
         df_display.drop(columns=['pb'], inplace=True)
-    if 'cf_positive' in df_display.columns:
-        df_display['现金流为正'] = df_display['cf_positive']
-        df_display.drop(columns=['cf_positive'], inplace=True)
     if 'rd_expense' in df_display.columns:
         df_display['研发投入(亿)'] = df_display['rd_expense'].round(2)
         df_display.drop(columns=['rd_expense'], inplace=True)
+    if 'intangible_ratio' in df_display.columns:
+        df_display['无形资产/净资产(%)'] = df_display['intangible_ratio'].round(2)
+        df_display.drop(columns=['intangible_ratio'], inplace=True)
+    if 'cf_positive' in df_display.columns:
+        df_display['现金流为正'] = df_display['cf_positive']
+        df_display.drop(columns=['cf_positive'], inplace=True)
     if 'dayvolume' in df_display.columns:
         df_display['成交量(股)'] = df_display['dayvolume'].astype(int)
         df_display.drop(columns=['dayvolume'], inplace=True)
@@ -689,7 +723,7 @@ def display_screened_results(df_res):
         df_display.insert(0, '序号', range(1, len(df_display) + 1))
     
     # 重新排序一下便于好看
-    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '资产净利率(ROA%)', '股价/每股净资产(PB)', '研发投入(亿)', '现金流为正', '成交量(股)', '股息收益率(%)', '行业']
+    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '资产净利率(ROA%)', '股价/每股净资产(PB)', '研发投入(亿)', '无形资产/净资产(%)', '现金流为正', '成交量(股)', '股息收益率(%)', '行业']
     actual_order = [c for c in preferred_order if c in df_display.columns]
     df_display = df_display[actual_order]
     
