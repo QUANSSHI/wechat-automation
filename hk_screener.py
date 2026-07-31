@@ -855,7 +855,6 @@ with col_indices:
     hsi = indices_data.get("恒生指数 (HSI)", {"price": 0.0, "change": 0.0, "pct": 0.0})
     hstech = indices_data.get("恒生科技指数 (HSTECH)", {"price": 0.0, "change": 0.0, "pct": 0.0})
     hsce = indices_data.get("恒生国企指数 (HSCE)", {"price": 0.0, "change": 0.0, "pct": 0.0})
-    
     def format_index_badge(name, info):
         price_str = f"{info['price']:,.2f}"
         pct = info['pct']
@@ -866,29 +865,12 @@ with col_indices:
         
         # 处理异常/休市
         if info['price'] <= 0:
-            return f"""
-            <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; font-size: 0.8rem; display: flex; flex-direction: column; align-items: flex-start; min-width: 105px; box-shadow: var(--shadow);">
-                <span style="font-weight: 600; color: var(--text-muted); font-size: 0.7rem; line-height: 1.1;">{name}</span>
-                <span style="font-weight: 700; color: var(--text-value); margin: 2px 0 1px 0; font-size: 0.85rem; line-height: 1.1;">获取失败</span>
-                <span style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600; line-height: 1.1;">--</span>
-            </div>
-            """
+            return f'<div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; font-size: 0.8rem; display: flex; flex-direction: column; align-items: flex-start; min-width: 105px; box-shadow: var(--shadow);"><span style="font-weight: 600; color: var(--text-muted); font-size: 0.7rem; line-height: 1.1;">{name}</span><span style="font-weight: 700; color: var(--text-value); margin: 2px 0 1px 0; font-size: 0.85rem; line-height: 1.1;">获取失败</span><span style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600; line-height: 1.1;">--</span></div>'
             
-        return f"""
-        <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; font-size: 0.8rem; display: flex; flex-direction: column; align-items: flex-start; min-width: 105px; box-shadow: var(--shadow);">
-            <span style="font-weight: 600; color: var(--text-muted); font-size: 0.7rem; line-height: 1.1;">{name}</span>
-            <span style="font-weight: 700; color: var(--text-value); margin: 2px 0 1px 0; font-size: 0.88rem; line-height: 1.1;">{price_str}</span>
-            <span style="color: {color}; font-size: 0.7rem; font-weight: 700; line-height: 1.1;">{arrow} {sign}{change:,.2f} ({sign}{pct:.2f}%)</span>
-        </div>
-        """
+        return f'<div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; font-size: 0.8rem; display: flex; flex-direction: column; align-items: flex-start; min-width: 105px; box-shadow: var(--shadow);"><span style="font-weight: 600; color: var(--text-muted); font-size: 0.7rem; line-height: 1.1;">{name}</span><span style="font-weight: 700; color: var(--text-value); margin: 2px 0 1px 0; font-size: 0.88rem; line-height: 1.1;">{price_str}</span><span style="color: {color}; font-size: 0.7rem; font-weight: 700; line-height: 1.1;">{arrow} {sign}{change:,.2f} ({sign}{pct:.2f}%)</span></div>'
     
-    st.markdown(f"""
-    <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center; height: 100%; margin-top: 5px; padding-right: 5px;">
-        {format_index_badge("恒生指数", hsi)}
-        {format_index_badge("恒生科技", hstech)}
-        {format_index_badge("国企指数", hsce)}
-    </div>
-    """, unsafe_allow_html=True)
+    html_ticker = f'<div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center; height: 100%; margin-top: 5px; padding-right: 5px;">{format_index_badge("恒生指数", hsi)}{format_index_badge("恒生科技", hstech)}{format_index_badge("国企指数", hsce)}</div>'
+    st.markdown(html_ticker, unsafe_allow_html=True)
 
 with col_logo:
     st.markdown("""
