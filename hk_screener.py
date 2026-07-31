@@ -844,20 +844,62 @@ def render_heatmap():
     components.html(html_code, height=450, scrolling=True)
 
 # ==================== UI 标题头部 ====================
-col_title, col_logo = st.columns([3, 1])
+col_title, col_indices, col_logo = st.columns([3.0, 4.6, 1.4])
 with col_title:
     st.markdown('<div class="gradient-title">HKScreener Pro</div>', unsafe_allow_html=True)
-    st.markdown("<p style='font-size:1.0rem; color:var(--text-muted); margin: 0;'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:0.95rem; color:var(--text-muted); margin: 0;'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
+
+with col_indices:
+    # 顶部精简展示三大指数，具备极客级金融终端质感
+    indices_data = fetch_indices()
+    hsi = indices_data.get("恒生指数 (HSI)", {"price": 0.0, "change": 0.0, "pct": 0.0})
+    hstech = indices_data.get("恒生科技指数 (HSTECH)", {"price": 0.0, "change": 0.0, "pct": 0.0})
+    hsce = indices_data.get("恒生国企指数 (HSCE)", {"price": 0.0, "change": 0.0, "pct": 0.0})
+    
+    def format_index_badge(name, info):
+        price_str = f"{info['price']:,.2f}"
+        pct = info['pct']
+        change = info['change']
+        color = "#ef4444" if pct >= 0 else "#10b981"  # 红涨绿跌
+        sign = "+" if pct >= 0 else ""
+        arrow = "▲" if pct >= 0 else "▼"
+        
+        # 处理异常/休市
+        if info['price'] <= 0:
+            return f"""
+            <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; font-size: 0.8rem; display: flex; flex-direction: column; align-items: flex-start; min-width: 105px; box-shadow: var(--shadow);">
+                <span style="font-weight: 600; color: var(--text-muted); font-size: 0.7rem; line-height: 1.1;">{name}</span>
+                <span style="font-weight: 700; color: var(--text-value); margin: 2px 0 1px 0; font-size: 0.85rem; line-height: 1.1;">获取失败</span>
+                <span style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600; line-height: 1.1;">--</span>
+            </div>
+            """
+            
+        return f"""
+        <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 4px 8px; font-size: 0.8rem; display: flex; flex-direction: column; align-items: flex-start; min-width: 105px; box-shadow: var(--shadow);">
+            <span style="font-weight: 600; color: var(--text-muted); font-size: 0.7rem; line-height: 1.1;">{name}</span>
+            <span style="font-weight: 700; color: var(--text-value); margin: 2px 0 1px 0; font-size: 0.88rem; line-height: 1.1;">{price_str}</span>
+            <span style="color: {color}; font-size: 0.7rem; font-weight: 700; line-height: 1.1;">{arrow} {sign}{change:,.2f} ({sign}{pct:.2f}%)</span>
+        </div>
+        """
+    
+    st.markdown(f"""
+    <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center; height: 100%; margin-top: 5px; padding-right: 5px;">
+        {format_index_badge("恒生指数", hsi)}
+        {format_index_badge("恒生科技", hstech)}
+        {format_index_badge("国企指数", hsce)}
+    </div>
+    """, unsafe_allow_html=True)
+
 with col_logo:
     st.markdown("""
-    <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; height: 100%; margin-top: 15px;">
-        <div style="font-size: 0.8rem; font-weight: 600; color: #10b981; display: flex; align-items: center; gap: 5px; margin-bottom: 4px;">
-            <span style="display: inline-block; width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981;"></span>
-            本地安全运行 (Local Security)
+    <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; height: 100%; margin-top: 5px;">
+        <div style="font-size: 0.72rem; font-weight: 600; color: #10b981; display: flex; align-items: center; gap: 4px; margin-bottom: 2px; white-space: nowrap;">
+            <span style="display: inline-block; width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; box-shadow: 0 0 6px #10b981;"></span>
+            本地运行安全
         </div>
-        <div style="font-size: 0.8rem; font-weight: 600; color: #3b82f6; display: flex; align-items: center; gap: 5px;">
-            <span style="display: inline-block; width: 8px; height: 8px; background-color: #3b82f6; border-radius: 50%; box-shadow: 0 0 8px #3b82f6;"></span>
-            港股通数据就绪 (Stock Connect Active)
+        <div style="font-size: 0.72rem; font-weight: 600; color: #3b82f6; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+            <span style="display: inline-block; width: 6px; height: 6px; background-color: #3b82f6; border-radius: 50%; box-shadow: 0 0 6px #3b82f6;"></span>
+            港股通已就绪
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -936,34 +978,8 @@ sort_field, sort_asc = sort_options[sort_choice]
 # ==================== 主内容区：标签页式管理 ====================
 tab1, tab2, tab3, tab4 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析", "📰 相关个股重大新闻"])
 
-# -------------------- TAB 1: 大盘监控与量化策略 --------------------
 with tab1:
-    st.markdown("### 🏛️ 香港大盘指数概览")
-    indices_data = fetch_indices()
-    cols = st.columns(3)
-    for idx, (name, val) in enumerate(indices_data.items()):
-        with cols[idx]:
-            if val['price'] > 0:
-                color_class = "metric-delta-pos" if val['pct'] >= 0 else "metric-delta-neg"
-                arrow = "▲" if val['pct'] >= 0 else "▼"
-                sign = "+" if val['pct'] >= 0 else ""
-                st.markdown(f"""
-                <div class="premium-card index-card">
-                    <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">{name}</div>
-                    <div class="metric-value">{val['price']:,.2f}</div>
-                    <div class="{color_class}">{arrow} {sign}{val['change']:,.2f} ({sign}{val['pct']:.2f}%)</div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div class="premium-card index-card">
-                    <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">{name}</div>
-                    <div class="metric-value">休市中/获取失败</div>
-                    <div class="metric-delta-pos">--</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-    st.markdown("---")
+    # 大盘指数已在页面最顶端以迷你徽章展示，此处仅保留大盘热力图，使界面极为干练
     st.markdown("### 📊 当日港股资金集中度矩阵图 (资金规模 & 涨跌分布)")
     st.markdown("<p style='font-size:0.9rem; color:var(--text-muted);'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看主力资金净流入、最新股价及成交额详情。</p>", unsafe_allow_html=True)
     render_heatmap()
