@@ -632,6 +632,29 @@ def fetch_extra_metrics(symbol):
             "cash_ratio": None
         }
 
+# ==================== 获取行业平均市盈率 ====================
+@st.cache_data(ttl=3600)  # 缓存 1 小时
+def fetch_industry_average_pe(sector_en):
+    try:
+        from yfinance import EquityQuery
+        q = EquityQuery('and', [
+            EquityQuery('eq', ['region', 'hk']),
+            EquityQuery('eq', ['sector', sector_en]),
+            EquityQuery('gt', ['peratio.lasttwelvemonths', 0])
+        ])
+        res = yf.screen(q, size=150)
+        if res and 'quotes' in res and len(res['quotes']) > 0:
+            df = pd.DataFrame(res['quotes'])
+            if 'trailingPE' in df.columns:
+                pe_series = df['trailingPE'].dropna()
+                # 过滤异常值 (亏损股 PE<=0，以及极端的僵尸股/炒作股 PE>=100)
+                pe_series = pe_series[(pe_series > 0) & (pe_series < 100)]
+                if not pe_series.empty:
+                    return float(pe_series.mean())
+    except Exception:
+        pass
+    return None
+
 # ==================== 缓存单股详情及行情数据 ====================
 @st.cache_data(ttl=3600)  # 缓存 1 小时
 def fetch_single_stock_info_and_history(symbol):
@@ -1395,6 +1418,37 @@ with tab3:
                     with metric_cols[4]:
                         st.metric("贝塔系数 (Beta 5Y)", fmt_num(info.get('beta')))
                     
+                    # ===== 行业平均市盈率对比横幅 =====
+                    stock_pe = info.get('trailingPE')
+                    industry_avg_pe = fetch_industry_average_pe(sector_en) if sector_en and sector_en != 'N/A' else None
+                    
+                    if industry_avg_pe is not None:
+                        if stock_pe is not None:
+                            try:
+                                pe_val = float(stock_pe)
+                                diff = pe_val - industry_avg_pe
+                                diff_pct = (diff / industry_avg_pe) * 100 if industry_avg_pe != 0 else 0
+                                if diff < 0:
+                                    verdict = "低于行业均值"
+                                    verdict_color = "#10b981"
+                                    verdict_icon = "🟢"
+                                    verdict_label = "估值偏低"
+                                elif diff_pct <= 15:
+                                    verdict = "接近行业均值"
+                                    verdict_color = "#f59e0b"
+                                    verdict_icon = "🟡"
+                                    verdict_label = "估值合理"
+                                else:
+                                    verdict = "高于行业均值"
+                                    verdict_color = "#ef4444"
+                                    verdict_icon = "🔴"
+                                    verdict_label = "估值偏高"
+                                st.markdown(f"""<div style="margin: 16px 0; padding: 14px 20px; border-radius: 10px; background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(59,130,246,0.08)); border: 1px solid rgba(168,85,247,0.25); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;"><div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 1.6rem;">📊</span><div><span style="font-size: 0.8rem; color: var(--text-muted);">港股{sector_cn}行业平均市盈率</span><br/><span style="font-size: 1.35rem; font-weight: 800; color: #a855f7;">{industry_avg_pe:.2f}x</span></div></div><div style="display: flex; align-items: center; gap: 12px;"><div><span style="font-size: 0.8rem; color: var(--text-muted);">当前个股市盈率</span><br/><span style="font-size: 1.35rem; font-weight: 800; color: var(--text-value);">{pe_val:.2f}x</span></div></div><div style="display: flex; align-items: center; gap: 12px;"><div><span style="font-size: 0.8rem; color: var(--text-muted);">偏离度</span><br/><span style="font-size: 1.35rem; font-weight: 800; color: {verdict_color};">{diff_pct:+.1f}%</span></div></div><div style="padding: 6px 14px; border-radius: 20px; background: {verdict_color}22; border: 1.5px solid {verdict_color}; display: flex; align-items: center; gap: 6px;"><span style="font-size: 1.1rem;">{verdict_icon}</span><span style="font-size: 0.9rem; font-weight: 700; color: {verdict_color};">{verdict_label} · {verdict}</span></div></div>""", unsafe_allow_html=True)
+                            except (ValueError, TypeError):
+                                pass
+                        else:
+                            st.markdown(f"""<div style="margin: 16px 0; padding: 14px 20px; border-radius: 10px; background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(59,130,246,0.08)); border: 1px solid rgba(168,85,247,0.25); display: flex; align-items: center; gap: 12px;"><span style="font-size: 1.6rem;">📊</span><div><span style="font-size: 0.8rem; color: var(--text-muted);">港股{sector_cn}行业平均市盈率</span><br/><span style="font-size: 1.35rem; font-weight: 800; color: #a855f7;">{industry_avg_pe:.2f}x</span></div><div style="margin-left: 20px; font-size: 0.85rem; color: var(--text-muted);">该个股当前无有效 PE 数据，无法进行对比</div></div>""", unsafe_allow_html=True)
+
                     # 绘制股价走势
                     if not hist.empty:
                         st.markdown("#### 📈 过去一年日K收盘价走势曲线")
