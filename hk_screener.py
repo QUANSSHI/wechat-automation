@@ -541,11 +541,70 @@ def check_buffett_criteria(symbol):
     except Exception as e:
         return True, f"符合核心指标 (报表分析校验被跳过: {str(e)})"
 
+# ==================== 获取个股额外财务指标 ====================
+@st.cache_data(ttl=3600)  # 缓存 1 小时
+def fetch_extra_metrics(symbol):
+    try:
+        t = yf.Ticker(symbol)
+        info = t.info
+        
+        # 1. 净利率
+        profit_margin = info.get('profitMargins')
+        profit_margin_val = profit_margin * 100 if profit_margin is not None else None
+        
+        # 2. 净资产 (亿HKD)
+        book_value = info.get('bookValue')
+        shares = info.get('sharesOutstanding')
+        net_assets_val = None
+        if book_value and shares:
+            net_assets_val = (book_value * shares) / 1e8
+            
+        # 3. 现金流是否为正 (使用经营现金流判定)
+        op_cf = info.get('operatingCashflow')
+        cf_positive = None
+        if op_cf is not None:
+            cf_positive = "是" if op_cf > 0 else "否"
+            
+        return {
+            "profit_margin": profit_margin_val,
+            "net_assets": net_assets_val,
+            "cf_positive": cf_positive
+        }
+    except Exception:
+        return {
+            "profit_margin": None,
+            "net_assets": None,
+            "cf_positive": "未知"
+        }
+
 # ==================== 筛选结果展示与格式化 ====================
 def display_screened_results(df_res):
+    # 批量拉取额外财务指标
+    profit_margins = []
+    net_assets_list = []
+    cf_positives = []
+    
+    symbols = df_res['symbol'].tolist()
+    total_len = len(symbols)
+    
+    progress_text = "正在安全读取财务指标 (净利率/净资产/现金流)..."
+    my_bar = st.progress(0.0, text=progress_text)
+    for idx, sym in enumerate(symbols):
+        my_bar.progress((idx + 1) / total_len, text=f"正在读取 {sym} 的财务数据 ({idx+1}/{total_len})...")
+        metrics = fetch_extra_metrics(sym)
+        profit_margins.append(metrics["profit_margin"])
+        net_assets_list.append(metrics["net_assets"])
+        cf_positives.append(metrics["cf_positive"])
+    my_bar.empty()
+    
+    df_res = df_res.copy()
+    df_res['profit_margin'] = profit_margins
+    df_res['net_assets'] = net_assets_list
+    df_res['cf_positive'] = cf_positives
+
     display_cols = ['symbol', 'shortName', 'regularMarketPrice', 'intradaymarketcap',
-                    'peratio.lasttwelvemonths', 'dayvolume', 'percentchange',
-                    'forward_dividend_yield', 'sector']
+                    'peratio.lasttwelvemonths', 'profit_margin', 'net_assets', 'cf_positive',
+                    'dayvolume', 'percentchange', 'forward_dividend_yield', 'sector']
     existing_cols = [c for c in display_cols if c in df_res.columns]
     df_display = df_res[existing_cols].copy()
     
@@ -586,6 +645,15 @@ def display_screened_results(df_res):
     if 'peratio.lasttwelvemonths' in df_display.columns:
         df_display['市盈率(PE)'] = df_display['peratio.lasttwelvemonths'].round(2)
         df_display.drop(columns=['peratio.lasttwelvemonths'], inplace=True)
+    if 'profit_margin' in df_display.columns:
+        df_display['净利率(%)'] = df_display['profit_margin'].round(2)
+        df_display.drop(columns=['profit_margin'], inplace=True)
+    if 'net_assets' in df_display.columns:
+        df_display['净资产(亿HKD)'] = df_display['net_assets'].round(2)
+        df_display.drop(columns=['net_assets'], inplace=True)
+    if 'cf_positive' in df_display.columns:
+        df_display['现金流为正'] = df_display['cf_positive']
+        df_display.drop(columns=['cf_positive'], inplace=True)
     if 'dayvolume' in df_display.columns:
         df_display['成交量(股)'] = df_display['dayvolume'].astype(int)
         df_display.drop(columns=['dayvolume'], inplace=True)
@@ -603,7 +671,7 @@ def display_screened_results(df_res):
         df_display.insert(0, '序号', range(1, len(df_display) + 1))
     
     # 重新排序一下便于好看
-    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '成交量(股)', '股息收益率(%)', '行业']
+    preferred_order = ['序号', '股票代码', '股票简称', '价格(HKD)', '涨跌幅(%)', '市值(亿USD)', '市盈率(PE)', '净利率(%)', '净资产(亿HKD)', '现金流为正', '成交量(股)', '股息收益率(%)', '行业']
     actual_order = [c for c in preferred_order if c in df_display.columns]
     df_display = df_display[actual_order]
     
