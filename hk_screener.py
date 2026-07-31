@@ -788,6 +788,24 @@ sort_options = {
 with st.container(border=True):
     st.markdown('<div style="font-weight: 700; font-size: 1.15rem; color: var(--text-value); margin-bottom: 10px;">🔍 多因子智能筛选控制台</div>', unsafe_allow_html=True)
     
+    # 快捷策略模板一键应用行 (带气泡提示描述)
+    st.markdown('<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;">💡 快捷策略模板 (鼠标悬停查看策略详情)：</div>', unsafe_allow_html=True)
+    c_strat1, c_strat2, c_strat3, c_strat4 = st.columns(4)
+    with c_strat1:
+        if st.button("💰 高股息蓝筹龙头", key="qc_high_div", help="【高股息蓝筹龙头】\n寻找大型公用事业、金融服务、房地产领域的优质港股巨头。要求市值 >50亿 USD、市盈率 <12 且股息率 >6%。", on_click=apply_template, args=("high_div",), use_container_width=True):
+            st.success("已成功应用「高股息蓝筹龙头」策略！")
+    with c_strat2:
+        if st.button("🚀 低估值成长先锋", key="qc_growth", help="【低估值成长先锋】\n聚焦中大型科技股、生物医药、通讯行业。寻找估值合理（PE <22）、市值 >10亿 USD 且日均流动性较强的成长股。", on_click=apply_template, args=("undervalued_growth",), use_container_width=True):
+            st.success("已成功应用「低估值成长先锋」策略！")
+    with c_strat3:
+        if st.button("🦄 小市值黑马探测", key="qc_microcap", help="【小市值黑马探测】\n在小市值（1亿 ~ 10亿美元）区间内，挑选估值极低（PE <10）、价格坚实且兼具稳定分红（股息率 >2%）的小盘黑马。", on_click=apply_template, args=("microcap_alpha",), use_container_width=True):
+            st.success("已成功应用「小市值黑马探测」策略！")
+    with c_strat4:
+        if st.button("📖 巴菲特读财报选股", key="qc_buffett", help="【巴菲特教你读财报选股】\n应用巴菲特护城河财务法则：毛利率 >40%、净利率 >20%、销管费 <30%、ROE >15%、负债可在 4 年内还清、资本支出 <25%。", on_click=apply_template, args=("buffett_alpha",), use_container_width=True):
+            st.success("已成功应用「巴菲特教你读财报」策略！")
+
+    st.markdown('<hr style="margin: 12px 0; border: 0; border-top: 1px solid var(--card-border);"/>', unsafe_allow_html=True)
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         min_mcap = st.number_input("最小市值(USD)", min_value=0, key="min_mcap", step=100000000)
@@ -844,62 +862,7 @@ with tab1:
     st.markdown("<p style='font-size:0.9rem; color:var(--text-muted);'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看主力资金净流入、最新股价及成交额详情。</p>", unsafe_allow_html=True)
     render_heatmap()
 
-    st.markdown("---")
-    st.markdown("### 💡 快捷量化策略模板 (一键应用)")
-    st.markdown("点击以下策略，将自动同步参数到侧边栏。之后在左下角点击 **「执行筛选」** 即可完成分析。")
-    
-    col_row1_1, col_row1_2 = st.columns(2)
-    
-    with col_row1_1:
-        st.markdown("""
-        <div class="premium-card" style="height: 175px;">
-            <div style="font-weight: 700; font-size: 1.15rem; color: #6366f1;">💰 高股息蓝筹龙头</div>
-            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; line-height: 1.4;">
-                寻找大型公用事业、金融服务、房地产领域的优质港股巨头。要求市值 <b>>50亿 USD</b>、市盈率 <b>&lt;12</b> 且股息率 <b>>6%</b>。
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("应用 “高股息蓝筹龙头” 策略", key="btn_high_div", on_click=apply_template, args=("high_div",)):
-            st.success("「高股息蓝筹龙头」策略参数已填充，请切往下一标签页执行筛选！")
-            
-    with col_row1_2:
-        st.markdown("""
-        <div class="premium-card" style="height: 175px;">
-            <div style="font-weight: 700; font-size: 1.15rem; color: #a855f7;">🚀 低估值成长先锋</div>
-            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; line-height: 1.4;">
-                聚焦中大型科技股、生物医药、通讯行业。寻找估值合理（PE <b>&lt;22</b>）、市值 <b>>10亿 USD</b> 且日均流动性较强的成长股。
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("应用 “低估值成长先锋” 策略", key="btn_growth", on_click=apply_template, args=("undervalued_growth",)):
-            st.success("「低估值成长先锋」策略参数已填充，请切往下一标签页执行筛选！")
-            
-    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-    col_row2_1, col_row2_2 = st.columns(2)
-    
-    with col_row2_1:
-        st.markdown("""
-        <div class="premium-card" style="height: 175px;">
-            <div style="font-weight: 700; font-size: 1.15rem; color: #ec4899;">🦄 小市值黑马探测</div>
-            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; line-height: 1.4;">
-                在小市值（<b>1亿 ~ 10亿美元</b>）区间内，挑选估值极低（PE <b>&lt;10</b>）、价格坚实且兼具稳定分红（股息率 <b>>2%</b>）的小盘黑马。
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("应用 “小市值黑马探测” 策略", key="btn_microcap", on_click=apply_template, args=("microcap_alpha",)):
-            st.success("「小市值黑马探测」策略参数已填充，请切往下一标签页执行筛选！")
-            
-    with col_row2_2:
-        st.markdown("""
-        <div class="premium-card" style="height: 175px;">
-            <div style="font-weight: 700; font-size: 1.15rem; color: #eab308;">📖 巴菲特教你读财报选股</div>
-            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; line-height: 1.4;">
-                应用巴菲特护城河财务法则：毛利率<b>>40%</b>、净利率<b>>20%</b>、销管费<b>&lt;30%</b>、ROE<b>>15%</b>、负债可在<b>4年内还清</b>、资本支出<b>&lt;25%</b>。
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("应用 “巴菲特读财报” 策略", key="btn_buffett", on_click=apply_template, args=("buffett_alpha",)):
-            st.success("「巴菲特教你读财报选股」策略及报表深度过滤已激活，请切往下一标签页执行筛选！")
+
 
 # -------------------- TAB 2: 香港股权筛选终端 --------------------
 with tab2:
