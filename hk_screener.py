@@ -291,26 +291,45 @@ def apply_template(template_name):
 # ==================== 大盘核心指数行情抓取 ====================
 @st.cache_data(ttl=180)  # 3分钟缓存
 def fetch_indices():
-    indices = {
-        "恒生指数 (HSI)": "^HSI",
-        "恒生科技指数 (HSTECH)": "^HSTECH",
-        "恒生国企指数 (HSCE)": "^HSCE"
+    url = "http://qt.gtimg.cn/q=hkHSI,hkHSCEI,hkHSTECH"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/91.0.4472.124"
     }
-    data = {}
-    for name, ticker in indices.items():
-        try:
-            t = yf.Ticker(ticker)
-            hist = t.history(period="2d")
-            if len(hist) >= 2:
-                price = hist['Close'].iloc[-1]
-                prev_close = hist['Close'].iloc[-2]
-                change = price - prev_close
-                pct_change = (change / prev_close) * 100
-                data[name] = {"price": price, "change": change, "pct": pct_change}
-            else:
-                data[name] = {"price": 0.0, "change": 0.0, "pct": 0.0}
-        except Exception:
-            data[name] = {"price": 0.0, "change": 0.0, "pct": 0.0}
+    data = {
+        "恒生指数 (HSI)": {"price": 0.0, "change": 0.0, "pct": 0.0},
+        "恒生科技指数 (HSTECH)": {"price": 0.0, "change": 0.0, "pct": 0.0},
+        "恒生国企指数 (HSCE)": {"price": 0.0, "change": 0.0, "pct": 0.0}
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        raw_content = response.content.decode('gbk', errors='ignore')
+        
+        ticker_map = {
+            "hkHSI": "恒生指数 (HSI)",
+            "hkHSCEI": "恒生国企指数 (HSCE)",
+            "hkHSTECH": "恒生科技指数 (HSTECH)"
+        }
+        
+        for line in raw_content.split(';'):
+            line = line.strip()
+            if not line or '=' not in line:
+                continue
+            var_name, val_str = line.split('=', 1)
+            var_name = var_name.replace('v_', '').strip()
+            val_str = val_str.strip('"')
+            parts = val_str.split('~')
+            
+            if len(parts) > 32 and var_name in ticker_map:
+                name = ticker_map[var_name]
+                try:
+                    price = float(parts[3])
+                    change = float(parts[31])
+                    pct = float(parts[32])
+                    data[name] = {"price": price, "change": change, "pct": pct}
+                except ValueError:
+                    pass
+    except Exception:
+        pass
     return data
 
 # ==================== 港股简称汉化映射抓取 ====================
@@ -598,27 +617,44 @@ def display_screened_results(df_res):
 # ==================== 资金流向大盘热力图 ====================
 @st.cache_data(ttl=180)  # 3分钟缓存
 def fetch_capital_heatmap_data():
-    url = "https://push2.eastmoney.com/api/qt/clist/get"
+    url = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHKStockData"
     params = {
-        "pn": 1,
-        "pz": 48,  # 最活跃的前 48 只股票 (在栅格中形成整齐的行数)
-        "po": 1,
-        "np": 1,
-        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
-        "fltt": 2,
-        "invt": 2,
-        "fid": "f6",  # 按照成交额 (f6) 排序，反映资金集中度
-        "fs": "m:128+t:3,m:128+t:4",
-        "fields": "f12,f14,f2,f3,f6,f62,f184"
+        "page": 1,
+        "num": 48,
+        "sort": "amount",  # 按成交额排序，反映资金集中度
+        "asc": 0,          # 降序
+        "node": "qbgg_hk",
+        "market": "HK"
     }
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124"
     }
     try:
         response = requests.get(url, params=params, headers=headers, timeout=5)
-        res_json = response.json()
-        diff = res_json.get('data', {}).get('diff', [])
-        return diff
+        raw_content = response.content.decode('gbk', errors='ignore')
+        res_json = json.loads(raw_content)
+        
+        formatted_data = []
+        for item in res_json:
+            code = item.get('symbol', '')
+            name = item.get('name', '未知')
+            price = float(item.get('lasttrade', 0.0))
+            prevclose = float(item.get('prevclose', 0.0))
+            amount = float(item.get('amount', 0.0))
+            
+            change = 0.0
+            if prevclose > 0:
+                change = (price - prevclose) / prevclose * 100
+                
+            formatted_data.append({
+                'f12': code,       # 代码
+                'f14': name,       # 名称
+                'f2': price,       # 价格
+                'f3': change,      # 涨跌幅 %
+                'f6': amount,      # 成交额
+                'f184': prevclose  # 昨收价 (保存为 f184)
+            })
+        return formatted_data
     except Exception:
         return []
 
@@ -635,7 +671,7 @@ def render_heatmap():
         price = item.get('f2', 0.0)
         change = item.get('f3', 0.0)
         turnover = item.get('f6', 0.0)
-        net_inflow = item.get('f62', 0.0)
+        prev_close = item.get('f184', 0.0)
         
         if not code or change is None:
             continue
@@ -657,12 +693,10 @@ def render_heatmap():
             bg_gradient = "linear-gradient(135deg, #64748b, #475569)" # 平盘
             
         turnover_b = turnover / 1e8
-        net_inflow_b = net_inflow / 1e8
         sign = "+" if change >= 0 else ""
         
         # 针对 Tooltip 中的正负符号和颜色应用 CSS 类别
         change_class = "up" if change >= 0 else "down"
-        inflow_class = "up" if net_inflow >= 0 else "down"
         
         card_html = f"""
         <div class="card" style="background: {bg_gradient};">
@@ -673,7 +707,7 @@ def render_heatmap():
                 <div class="tooltip-row">最新价格: <strong>{price:.2f} HKD</strong></div>
                 <div class="tooltip-row">今日涨跌: <strong class="{change_class}">{sign}{change:.2f}%</strong></div>
                 <div class="tooltip-row">当日成交: <strong>{turnover_b:.2f} 亿 HKD</strong></div>
-                <div class="tooltip-row">主力净流入: <strong class="{inflow_class}">{net_inflow_b:+.2f} 亿 HKD</strong></div>
+                <div class="tooltip-row">昨收价格: <strong>{prev_close:.2f} HKD</strong></div>
             </div>
         </div>
         """
