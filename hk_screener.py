@@ -726,6 +726,11 @@ def render_heatmap():
     components.html(html_code, height=450, scrolling=True)
 
 # ==================== UI 标题头部 ====================
+col_title, col_logo = st.columns([5, 1])
+with col_title:
+    st.markdown('<div class="gradient-title">HKScreener Pro</div>', unsafe_allow_html=True)
+    st.markdown("<p style='font-size:1.0rem; color:var(--text-muted);'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
+
 # ==================== 顶部多因子选股控制台 ====================
 SECTOR_MAP = {
     "科技 (Technology)": "Technology",
@@ -771,12 +776,6 @@ with st.container(border=True):
         st.button("🧹 重置筛选条件", type="secondary", on_click=reset_filters, use_container_width=True)
 
 sort_field, sort_asc = sort_options[sort_choice]
-
-# ==================== UI 标题头部 ====================
-col_title, col_logo = st.columns([5, 1])
-with col_title:
-    st.markdown('<div class="gradient-title">HKScreener Pro</div>', unsafe_allow_html=True)
-    st.markdown("<p style='font-size:1.0rem; color:var(--text-muted);'>香港交易所全部股票多因子高级智能筛选器 | 纯本地隐私安全运行</p>", unsafe_allow_html=True)
 
 # ==================== 主内容区：标签页式管理 ====================
 tab1, tab2, tab3, tab4 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析", "📰 相关个股重大新闻"])
