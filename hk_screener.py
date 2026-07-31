@@ -190,6 +190,23 @@ st.markdown("""
         border-bottom: 2px solid #6366f1 !important;
     }
 </style>
+<script>
+    // 拦截 Streamlit 全局快捷键，防止按 C 键弹出 Clear Caches 缓存弹窗，防止按 R 键自动重载
+    const blockKeys = (doc) => {
+        try {
+            doc.addEventListener('keydown', function(e) {
+                const tag = e.target.tagName.toLowerCase();
+                const isInput = tag === 'input' || tag === 'textarea' || e.target.contentEditable === 'true';
+                if (!isInput && (e.key === 'c' || e.key === 'C' || e.key === 'r' || e.key === 'R')) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                }
+            }, true);
+        } catch (err) {}
+    };
+    blockKeys(document);
+    blockKeys(window.parent.document);
+</script>
 """, unsafe_allow_html=True)
 
 # ==================== 初始化 Session State (支持策略联动) ====================
