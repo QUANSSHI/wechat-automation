@@ -618,6 +618,23 @@ def fetch_extra_metrics(symbol):
             "intangible_ratio": None
         }
 
+# ==================== 缓存单股详情及行情数据 ====================
+@st.cache_data(ttl=3600)  # 缓存 1 小时
+def fetch_single_stock_info_and_history(symbol):
+    try:
+        t = yf.Ticker(symbol)
+        info = t.info
+        hist = t.history(period="1y")
+        if not hist.empty:
+            hist_df = hist[['Close', 'Volume']].copy()
+            # 移除时区信息，让 Streamlit 折线图轴标签完美渲染
+            hist_df.index = hist_df.index.tz_localize(None)
+        else:
+            hist_df = pd.DataFrame()
+        return info, hist_df
+    except Exception:
+        return {}, pd.DataFrame()
+
 # ==================== 筛选结果展示与格式化 ====================
 def display_screened_results(df_res):
     # 批量拉取额外财务指标
@@ -1293,10 +1310,9 @@ with tab3:
             
         with st.spinner(f"正在拉取 {selected_symbol} 的财务数据和历史行情记录..."):
             try:
-                ticker = yf.Ticker(selected_symbol)
-                info = ticker.info
+                info, hist = fetch_single_stock_info_and_history(selected_symbol)
                 
-                if 'shortName' in info:
+                if info and 'shortName' in info:
                     inv_sector_map = {
                         "Technology": "科技",
                         "Financial Services": "金融服务",
@@ -1358,7 +1374,6 @@ with tab3:
                         st.metric("贝塔系数 (Beta 5Y)", fmt_num(info.get('beta')))
                     
                     # 绘制股价走势
-                    hist = ticker.history(period="1y")
                     if not hist.empty:
                         st.markdown("#### 📈 过去一年日K收盘价走势曲线")
                         st.line_chart(hist['Close'], use_container_width=True)
