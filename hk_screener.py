@@ -969,7 +969,7 @@ def render_heatmap():
                 padding: 0;
                 background-color: transparent;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                overflow-x: hidden;
+                overflow: hidden;
             }}
             .grid-container {{
                 display: grid;
@@ -1079,12 +1079,22 @@ def render_heatmap():
         <div class="grid-container">
             {all_cards}
         </div>
+        <script>
+            // 自适应高度：通知父框架实际内容高度
+            function postHeight() {{
+                var h = document.querySelector('.grid-container').scrollHeight + 16;
+                window.parent.postMessage({{type: 'streamlit:setFrameHeight', height: h}}, '*');
+            }}
+            window.addEventListener('load', postHeight);
+            window.addEventListener('resize', postHeight);
+        </script>
     </body>
     </html>
     """
     
     import streamlit.components.v1 as components
-    components.html(html_code, height=450, scrolling=True)
+    # 设置一个足够大的高度上限，让 JS 自适应调整实际高度；scrolling=False 避免多余滚动条
+    components.html(html_code, height=750, scrolling=False)
 
 # ==================== UI 标题头部 ====================
 col_title, col_logo = st.columns([4, 1])
