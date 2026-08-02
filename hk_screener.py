@@ -682,19 +682,19 @@ GURU_PORTFOLIOS = {
         "style": "价值投资之父，长期持有护城河企业",
         "accent": "#f59e0b",
         "holdings": [
-            {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股"},
-            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股"},
-            {"symbol": "AXP", "name": "美国运通 American Express", "market": "美股"},
-            {"symbol": "BAC", "name": "美国银行 Bank of America", "market": "美股"},
-            {"symbol": "KO", "name": "可口可乐 Coca-Cola", "market": "美股"},
-            {"symbol": "CVX", "name": "雪佛龙 Chevron", "market": "美股"},
-            {"symbol": "OXY", "name": "西方石油 Occidental Petroleum", "market": "美股"},
-            {"symbol": "MCO", "name": "穆迪 Moody's", "market": "美股"},
-            {"symbol": "KHC", "name": "卡夫亨氏 Kraft Heinz", "market": "美股"},
-            {"symbol": "CB", "name": "安达保险 Chubb Limited", "market": "美股"},
-            {"symbol": "DVA", "name": "达维塔 DaVita", "market": "美股"},
-            {"symbol": "KR", "name": "克罗格 Kroger", "market": "美股"},
-            {"symbol": "SIRI", "name": "天狼星XM SiriusXM", "market": "美股"},
+            {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股", "weight": "28.0%"},
+            {"symbol": "AXP", "name": "美国运通 American Express", "market": "美股", "weight": "14.5%"},
+            {"symbol": "BAC", "name": "美国银行 Bank of America", "market": "美股", "weight": "11.0%"},
+            {"symbol": "KO", "name": "可口可乐 Coca-Cola", "market": "美股", "weight": "9.5%"},
+            {"symbol": "CVX", "name": "雪佛龙 Chevron", "market": "美股", "weight": "6.5%"},
+            {"symbol": "OXY", "name": "西方石油 Occidental Petroleum", "market": "美股", "weight": "4.8%"},
+            {"symbol": "MCO", "name": "穆迪 Moody's", "market": "美股", "weight": "3.8%"},
+            {"symbol": "KHC", "name": "卡夫亨氏 Kraft Heinz", "market": "美股", "weight": "3.2%"},
+            {"symbol": "CB", "name": "安达保险 Chubb Limited", "market": "美股", "weight": "2.5%"},
+            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股", "weight": "1.8%"},
+            {"symbol": "DVA", "name": "达维塔 DaVita", "market": "美股", "weight": "1.2%"},
+            {"symbol": "KR", "name": "克罗格 Kroger", "market": "美股", "weight": "0.8%"},
+            {"symbol": "SIRI", "name": "天狼星XM SiriusXM", "market": "美股", "weight": "0.6%"},
         ]
     },
     "duan": {
@@ -705,14 +705,14 @@ GURU_PORTFOLIOS = {
         "style": "中国巴菲特，专注消费和科技龙头，重仓少数优质企业",
         "accent": "#ef4444",
         "holdings": [
-            {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股"},
-            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股"},
-            {"symbol": "BRK-B", "name": "伯克希尔B Berkshire B", "market": "美股"},
-            {"symbol": "0700.HK", "name": "腾讯控股", "market": "港股"},
-            {"symbol": "9992.HK", "name": "泡泡玛特 Pop Mart", "market": "港股"},
-            {"symbol": "BABA", "name": "阿里巴巴 (美股)", "market": "美股"},
-            {"symbol": "PDD", "name": "拼多多 PDD Holdings", "market": "美股"},
-            {"symbol": "META", "name": "Meta Platforms", "market": "美股"},
+            {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股", "weight": "65.0%"},
+            {"symbol": "BRK-B", "name": "伯克希尔B Berkshire B", "market": "美股", "weight": "12.0%"},
+            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股", "weight": "8.0%"},
+            {"symbol": "0700.HK", "name": "腾讯控股", "market": "港股", "weight": "6.0%"},
+            {"symbol": "PDD", "name": "拼多多 PDD Holdings", "market": "美股", "weight": "4.0%"},
+            {"symbol": "BABA", "name": "阿里巴巴 (美股)", "market": "美股", "weight": "2.5%"},
+            {"symbol": "META", "name": "Meta Platforms", "market": "美股", "weight": "1.5%"},
+            {"symbol": "9992.HK", "name": "泡泡玛特 Pop Mart", "market": "港股", "weight": "1.0%"},
         ]
     },
     "lilu": {
@@ -723,12 +723,12 @@ GURU_PORTFOLIOS = {
         "style": "芒格接班人，深度价值投资，偏好亚洲核心资产",
         "accent": "#3b82f6",
         "holdings": [
-            {"symbol": "BRK-A", "name": "伯克希尔A Berkshire A", "market": "美股"},
-            {"symbol": "BAC", "name": "美国银行 Bank of America", "market": "美股"},
-            {"symbol": "MU", "name": "美光科技 Micron Technology", "market": "美股"},
-            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股"},
-            {"symbol": "EWBC", "name": "华美银行 East West Bancorp", "market": "美股"},
-            {"symbol": "OXY", "name": "西方石油 Occidental Petroleum", "market": "美股"},
+            {"symbol": "BAC", "name": "美国银行 Bank of America", "market": "美股", "weight": "32.0%"},
+            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股", "weight": "24.0%"},
+            {"symbol": "BRK-A", "name": "伯克希尔A Berkshire A", "market": "美股", "weight": "18.0%"},
+            {"symbol": "MU", "name": "美光科技 Micron Technology", "market": "美股", "weight": "14.0%"},
+            {"symbol": "EWBC", "name": "华美银行 East West Bancorp", "market": "美股", "weight": "8.0%"},
+            {"symbol": "OXY", "name": "西方石油 Occidental Petroleum", "market": "美股", "weight": "4.0%"},
         ]
     }
 }
@@ -1780,6 +1780,7 @@ with tab5:
                 rows.append({
                     '代码': h['symbol'],
                     '持仓标的': h['name'],
+                    '持仓占比': h.get('weight', 'N/A'),
                     '市场': h['market'],
                     f'最新价': f"{h['price']:.2f} {h['currency']}" if h['price'] else "N/A",
                     '今日涨跌(%)': round(change_val, 2),
@@ -1819,6 +1820,7 @@ with tab5:
                 table_rows_html += f"""<tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
                     <td style="padding:8px 10px;font-weight:600;color:var(--text-value);font-size:0.85rem;">{row['代码']}</td>
                     <td style="padding:8px 10px;font-size:0.85rem;">{row['持仓标的']}</td>
+                    <td style="padding:8px 10px;font-weight:700;color:{accent};font-size:0.85rem;">{row['持仓占比']}</td>
                     <td style="padding:8px 6px;"><span style="padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;background:{market_badge_bg};color:{market_badge_color};">{row['市场']}</span></td>
                     <td style="padding:8px 10px;font-weight:600;color:var(--text-value);font-size:0.85rem;">{row['最新价']}</td>
                     <td style="padding:8px 10px;font-weight:700;color:{change_color};font-size:0.85rem;">{change_str}</td>
@@ -1834,6 +1836,7 @@ with tab5:
                     <tr style="background:rgba(255,255,255,0.04);border-bottom:2px solid {accent}40;">
                         <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">代码</th>
                         <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">持仓标的</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">持仓占比</th>
                         <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">市场</th>
                         <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">最新价</th>
                         <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">今日涨跌</th>
