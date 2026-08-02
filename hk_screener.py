@@ -680,6 +680,8 @@ GURU_PORTFOLIOS = {
         "company": "伯克希尔·哈撒韦 (Berkshire Hathaway)",
         "avatar": "🧙‍♂️",
         "style": "价值投资之父，长期持有护城河企业",
+        "philosophy": "能力圈 + 经济护城河 + 长期主义",
+        "style_detail": "① <b>护城河壁垒</b>：只买具备深厚竞争壁垒（品牌、转换成本、网络效应）的行业垄断或绝对龙头；<br/>② <b>强劲自由现金流</b>：极度看重企业的真金白银造血能力，拒绝无盈利或高烧钱模式；<br/>③ <b>合理的安全边际</b>：宁要以合理价格买优秀公司，不要以便宜价格买平庸公司；<br/>④ <b>超长周期集中持有</b>：“若不打算持有十年，就不要持有十分钟”，重仓标的极其集中。",
         "accent": "#f59e0b",
         "holdings": [
             {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股", "weight": "28.0%"},
@@ -703,6 +705,8 @@ GURU_PORTFOLIOS = {
         "company": "步步高 / 个人投资",
         "avatar": "🎯",
         "style": "中国巴菲特，专注消费和科技龙头，重仓少数优质企业",
+        "philosophy": "买股票就是买公司 + 本分与理性",
+        "style_detail": "① <b>看懂商业模式</b>：只投自己能透彻理解的企业，商业模式越简单越好，产品要能看懂未来10年；<br/>② <b>极致重仓顶级龙头</b>：敢在最看好的标的上重仓甚至超重仓（如苹果占比超60%），不分散打散收益；<br/>③ <b>不择时、不做空、不加杠杆</b>：不做短线博弈与择时猜测，不对赌大盘，拒绝复杂衍生品；<br/>④ <b>聚焦企业文化</b>：极其看重管理团队的本分、正直与求真作风，认为企业文化是最大护城河。",
         "accent": "#ef4444",
         "holdings": [
             {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股", "weight": "65.0%"},
@@ -721,6 +725,8 @@ GURU_PORTFOLIOS = {
         "company": "喜马拉雅资本 (Himalaya Capital)",
         "avatar": "🏔️",
         "style": "芒格接班人，深度价值投资，偏好亚洲核心资产",
+        "philosophy": "真价值投资 + 极高安全边际 + 深度基本面",
+        "style_detail": "① <b>所有权心态</b>：以购买整个企业的心态做尽职调查，注重长期复利而非短期价格波动；<br/>② <b>极高的安全边际</b>：高度关注资产负债表的极其健康，寻找兼具高资产质量与低估值的标的；<br/>③ <b>偏好高 ROE 与金融/科技资产</b>：重仓长期可维持高净资产收益率且经营韧性极强的核心资产（银行、大科技）；<br/>④ <b>逆向思维重仓</b>：在市场恐慌或严重低估时果断重仓介入，具备极强的跨周期逆向投资定力。",
         "accent": "#3b82f6",
         "holdings": [
             {"symbol": "BAC", "name": "美国银行 Bank of America", "market": "美股", "weight": "32.0%"},
@@ -1755,15 +1761,27 @@ with tab5:
         guru = GURU_PORTFOLIOS[guru_key]
         accent = guru['accent']
         
-        # 投资大师名片卡
-        st.markdown(f"""<div style="margin: 20px 0 10px 0; padding: 14px 20px; border-radius: 10px; background: linear-gradient(135deg, {accent}15, {accent}05); border: 1px solid {accent}35;">
-            <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-                <span style="font-size: 2.2rem;">{guru['avatar']}</span>
-                <div>
-                    <div style="font-size: 1.2rem; font-weight: 800; color: {accent};">{guru['name']} <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">{guru['name_en']}</span></div>
-                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">{guru['company']}</div>
+        # 醒目的投资大师名片与风格提醒卡
+        st.markdown(f"""<div style="margin: 24px 0 12px 0; padding: 18px 22px; border-radius: 12px; background: linear-gradient(135deg, {accent}15, {accent}05); border: 1.5px solid {accent}40; box-shadow: 0 4px 16px rgba(0,0,0,0.2);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; border-bottom: 1px dashed {accent}35; padding-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <span style="font-size: 2.5rem;">{guru['avatar']}</span>
+                    <div>
+                        <div style="font-size: 1.3rem; font-weight: 800; color: {accent};">{guru['name']} <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">({guru['name_en']})</span></div>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">🏢 {guru['company']}</div>
+                    </div>
                 </div>
-                <div style="margin-left: auto; padding: 5px 14px; border-radius: 16px; background: {accent}18; border: 1px solid {accent}40; font-size: 0.78rem; color: {accent}; font-weight: 600;">{guru['style']}</div>
+                <div style="padding: 6px 16px; border-radius: 20px; background: {accent}22; border: 1px solid {accent}; font-size: 0.85rem; color: {accent}; font-weight: 700; box-shadow: 0 0 10px {accent}30;">
+                    💡 核心哲学：{guru['philosophy']}
+                </div>
+            </div>
+            <div style="background: rgba(15, 23, 42, 0.4); border-radius: 8px; padding: 12px 16px; border-left: 4px solid {accent};">
+                <div style="font-size: 0.88rem; font-weight: 700; color: #ffffff; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                    📌 【{guru['name']}】投资风格与选股法则提醒：
+                </div>
+                <div style="font-size: 0.83rem; color: #cbd5e1; line-height: 1.6;">
+                    {guru['style_detail']}
+                </div>
             </div>
         </div>""", unsafe_allow_html=True)
         
