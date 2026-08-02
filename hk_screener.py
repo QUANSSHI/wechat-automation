@@ -1226,133 +1226,124 @@ with col_logo:
     </div>
     """, unsafe_allow_html=True)
 
-# ==================== 左右主分栏布局 (黄金分割比例 62% : 38%) ====================
-left_col, right_col = st.columns([62, 38])
+# ==================== 顶部大盘核心指数 (100% 宽幅平铺) ====================
+indices_data = fetch_indices()
+hsi = indices_data.get("恒生指数 (HSI)", {"price": 0.0, "change": 0.0, "pct": 0.0})
+hstech = indices_data.get("恒生科技指数 (HSTECH)", {"price": 0.0, "change": 0.0, "pct": 0.0})
+hsce = indices_data.get("恒生国企指数 (HSCE)", {"price": 0.0, "change": 0.0, "pct": 0.0})
 
-with right_col:
-    # 1. 顶部大盘核心指数 (横排，提供足够宽度防止文本挤压)
-    indices_data = fetch_indices()
-    hsi = indices_data.get("恒生指数 (HSI)", {"price": 0.0, "change": 0.0, "pct": 0.0})
-    hstech = indices_data.get("恒生科技指数 (HSTECH)", {"price": 0.0, "change": 0.0, "pct": 0.0})
-    hsce = indices_data.get("恒生国企指数 (HSCE)", {"price": 0.0, "change": 0.0, "pct": 0.0})
+def render_mini_index_card(name, val):
+    if val['price'] > 0:
+        color_class = "metric-delta-pos" if val['pct'] >= 0 else "metric-delta-neg"
+        arrow = "▲" if val['pct'] >= 0 else "▼"
+        sign = "+" if val['pct'] >= 0 else ""
+        st.markdown(f"""
+        <div class="premium-card index-card" style="padding: 10px; margin-bottom: 8px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">{name}</div>
+            <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-value); margin: 3px 0 1px 0;">{val['price']:,.2f}</div>
+            <div class="{color_class}" style="font-size: 0.72rem; font-weight: 700;">{arrow} {sign}{val['change']:,.2f} ({sign}{val['pct']:.2f}%)</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="premium-card index-card" style="padding: 10px; margin-bottom: 8px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">{name}</div>
+            <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-value); margin: 3px 0 1px 0;">获取失败</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">--</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown('<div style="font-weight: 700; font-size: 1.05rem; color: var(--text-value); margin-bottom: 8px; margin-top: 10px;">🏛️ 香港大盘核心指数</div>', unsafe_allow_html=True)
+idx_col1, idx_col2, idx_col3 = st.columns(3)
+with idx_col1:
+    render_mini_index_card("恒生指数 (HSI)", hsi)
+with idx_col2:
+    render_mini_index_card("恒生科技指数 (HSTECH)", hstech)
+with idx_col3:
+    render_mini_index_card("恒生国企指数 (HSCE)", hsce)
+
+# ==================== 全宽主功能标签页 (100% 画面全屏铺满) ====================
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析", "📰 相关个股重大新闻", "🏆 股神持仓动态"])
+
+# -------------------- TAB 1: 大盘热力图 --------------------
+with tab1:
+    st.markdown("### 📊 当日港股资金集中度矩阵图 (资金规模 & 涨跌分布)")
+    st.markdown("<p style='font-size:0.9rem; color:var(--text-muted);'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看最新股价、今日涨跌、当日成交额及昨收价格。</p>", unsafe_allow_html=True)
+    render_heatmap()
+
+# -------------------- TAB 2: 香港股权筛选终端 --------------------
+SECTOR_MAP = {
+    "科技 (Technology)": "Technology",
+    "金融服务 (Financial Services)": "Financial Services",
+    "周期性消费 (Consumer Cyclical)": "Consumer Cyclical",
+    "防御性消费 (Consumer Defensive)": "Consumer Defensive",
+    "医疗健康 (Healthcare)": "Healthcare",
+    "工业 (Industrials)": "Industrials",
+    "基础材料 (Basic Materials)": "Basic Materials",
+    "能源 (Energy)": "Energy",
+    "房地产 (Real Estate)": "Real Estate",
+    "通讯服务 (Communication Services)": "Communication Services",
+    "公用事业 (Utilities)": "Utilities"
+}
+sort_options = {
+    "市值 (大→小)": ("intradaymarketcap", False),
+    "市值 (小→大)": ("intradaymarketcap", True),
+    "涨跌幅 (高→低)": ("percentchange", False),
+    "成交量 (高→低)": ("dayvolume", False),
+    "PE (低→高)": ("peratio.lasttwelvemonths", True),
+}
+
+with tab2:
+    st.markdown("### 🔍 港股多因子智能筛选与数据导出")
     
-    def render_mini_index_card(name, val):
-        if val['price'] > 0:
-            color_class = "metric-delta-pos" if val['pct'] >= 0 else "metric-delta-neg"
-            arrow = "▲" if val['pct'] >= 0 else "▼"
-            sign = "+" if val['pct'] >= 0 else ""
-            st.markdown(f"""
-            <div class="premium-card index-card" style="padding: 10px; margin-bottom: 8px;">
-                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">{name}</div>
-                <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-value); margin: 3px 0 1px 0;">{val['price']:,.2f}</div>
-                <div class="{color_class}" style="font-size: 0.72rem; font-weight: 700;">{arrow} {sign}{val['change']:,.2f} ({sign}{val['pct']:.2f}%)</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="premium-card index-card" style="padding: 10px; margin-bottom: 8px;">
-                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">{name}</div>
-                <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-value); margin: 3px 0 1px 0;">获取失败</div>
-                <div style="font-size: 0.72rem; color: var(--text-muted);">--</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-    st.markdown('<div style="font-weight: 700; font-size: 1.05rem; color: var(--text-value); margin-bottom: 8px; margin-top: 10px;">🏛️ 香港大盘指数</div>', unsafe_allow_html=True)
-    idx_col1, idx_col2, idx_col3 = st.columns(3)
-    with idx_col1:
-        render_mini_index_card("恒指 (HSI)", hsi)
-    with idx_col2:
-        render_mini_index_card("恒科 (HSTECH)", hstech)
-    with idx_col3:
-        render_mini_index_card("国指 (HSCE)", hsce)
-
-    # 2. 多因子智能筛选控制台 (2列排列，高度自适应)
-    SECTOR_MAP = {
-        "科技 (Technology)": "Technology",
-        "金融服务 (Financial Services)": "Financial Services",
-        "周期性消费 (Consumer Cyclical)": "Consumer Cyclical",
-        "防御性消费 (Consumer Defensive)": "Consumer Defensive",
-        "医疗健康 (Healthcare)": "Healthcare",
-        "工业 (Industrials)": "Industrials",
-        "基础材料 (Basic Materials)": "Basic Materials",
-        "能源 (Energy)": "Energy",
-        "房地产 (Real Estate)": "Real Estate",
-        "通讯服务 (Communication Services)": "Communication Services",
-        "公用事业 (Utilities)": "Utilities"
-    }
-    sort_options = {
-        "市值 (大→小)": ("intradaymarketcap", False),
-        "市值 (小→大)": ("intradaymarketcap", True),
-        "涨跌幅 (高→低)": ("percentchange", False),
-        "成交量 (高→低)": ("dayvolume", False),
-        "PE (低→高)": ("peratio.lasttwelvemonths", True),
-    }
-
-    with st.container(border=True):
+    with st.expander("🔍 展开 / 折叠多因子智能筛选控制台 (参数配置 & 快捷策略)", expanded=True):
         msg_html = ""
         if st.session_state.get("template_success_msg"):
             msg_html = f'<div style="font-size: 0.8rem; font-weight: 600; color: #10b981; margin-top: 4px; padding: 2px 8px; background: rgba(16, 185, 129, 0.1); border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">✓ {st.session_state.template_success_msg}</div>'
-
-        st.markdown(f"""
-        <div style="margin-bottom: 12px;">
-            <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-value);">🔍 多因子智能筛选控制台</div>
-            {msg_html}
-        </div>
-        """, unsafe_allow_html=True)
         
-        # 快捷策略模板一键应用
-        st.markdown('<div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px;">💡 快捷策略模板 (悬停查看详情)：</div>', unsafe_allow_html=True)
-        strat_col1, strat_col2 = st.columns(2)
+        st.markdown('<div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px;">💡 快捷策略模板 (一键导入精选估值法则，悬停可查看策略逻辑)：</div>', unsafe_allow_html=True)
+        
+        strat_col1, strat_col2, strat_col3, strat_col4 = st.columns(4)
         with strat_col1:
             st.button("💰 高股息蓝筹", key="qc_high_div", help="【高股息蓝筹龙头】\n寻找大型公用事业、金融服务、房地产领域的优质港股巨头。要求市值 >50亿 USD、市盈率 <12 且股息率 >6%。", on_click=apply_template, args=("high_div",), use_container_width=True)
-            st.button("🚀 低估值成长", key="qc_growth", help="【低估值成长先锋】\n聚焦中大型科技股、生物医药、通讯行业。寻找估值合理（PE <22）、市值 >10亿 USD 且日均流动性较强的成长股。", on_click=apply_template, args=("undervalued_growth",), use_container_width=True)
         with strat_col2:
+            st.button("🚀 低估值成长", key="qc_growth", help="【低估值成长先锋】\n聚焦中大型科技股、生物医药、通讯行业。寻找估值合理（PE <22）、市值 >10亿 USD 且日均流动性较强的成长股。", on_click=apply_template, args=("undervalued_growth",), use_container_width=True)
+        with strat_col3:
             st.button("🦄 小市值黑马", key="qc_microcap", help="【小市值黑马探测】\n在小市值（1亿 ~ 10亿美元）区间内，挑选估值极低（PE <10）、价格坚实且兼具稳定分红（股息率 >2%）的小盘黑马。", on_click=apply_template, args=("microcap_alpha",), use_container_width=True)
+        with strat_col4:
             st.button("📖 巴菲特财报", key="qc_buffett", help="【巴菲特教你读财报选股】\n应用巴菲特护城河财务法则：毛利率 >40%、净利率 >20%、销管费 <30%、ROE >15%、负债可在 4 年内还清、资本支出 <25%。", on_click=apply_template, args=("buffett_alpha",), use_container_width=True)
 
-        st.markdown('<hr style="margin: 12px 0; border: 0; border-top: 1px solid var(--card-border);"/>', unsafe_allow_html=True)
+        if msg_html:
+            st.markdown(msg_html, unsafe_allow_html=True)
 
-        param_col1, param_col2 = st.columns(2)
+        st.markdown('<hr style="margin: 14px 0 10px 0; border: 0; border-top: 1px solid var(--card-border);"/>', unsafe_allow_html=True)
+
+        param_col1, param_col2, param_col3 = st.columns(3)
         with param_col1:
             min_mcap = st.number_input("最小市值(USD)", min_value=0, key="min_mcap", step=100000000)
             max_mcap = st.number_input("最大市值(USD)", min_value=0, key="max_mcap", step=100000000)
             min_price = st.number_input("最低价格(HKD)", min_value=0.0, key="min_price", step=0.1)
             max_price = st.number_input("最高价格(HKD)", min_value=0.0, key="max_price", step=0.1)
-            selected_sectors_cn = st.multiselect("所属行业 (Sectors)", options=list(SECTOR_MAP.keys()), key="selected_sectors_cn")
         with param_col2:
             max_pe = st.slider("最大 PE (Trailing)", min_value=0, max_value=200, key="max_pe", step=1)
             min_volume = st.number_input("最小日成交量 (股)", min_value=0, key="min_volume", step=100000)
             min_change = st.slider("最低涨跌幅 (%)", min_value=-50.0, max_value=50.0, key="min_change", step=0.5)
             min_div_yield = st.slider("最低股息收益率 (%)", min_value=0.0, max_value=20.0, key="min_div_yield", step=0.1)
+        with param_col3:
+            selected_sectors_cn = st.multiselect("所属行业 (Sectors)", options=list(SECTOR_MAP.keys()), key="selected_sectors_cn")
             ggt_filter = st.selectbox("港股通筛选", ["不限", "仅限港股通", "排除港股通"], key="ggt_filter")
+            sort_choice = st.selectbox("排序字段", list(sort_options.keys()))
+            buffett_filter = st.checkbox("🔒 开启巴菲特深度财报指标过滤", key="buffett_filter")
 
-        st.markdown('<hr style="margin: 12px 0; border: 0; border-top: 1px solid var(--card-border);"/>', unsafe_allow_html=True)
-        sort_choice = st.selectbox("排序字段", list(sort_options.keys()))
-        buffett_filter = st.checkbox("🔒 开启巴菲特深度财报指标过滤", key="buffett_filter")
-        st.button("🧹 重置筛选条件", type="secondary", on_click=reset_filters, use_container_width=True)
+        st.markdown('<hr style="margin: 10px 0 14px 0; border: 0; border-top: 1px solid var(--card-border);"/>', unsafe_allow_html=True)
+        
+        btn_col1, btn_col2 = st.columns([3, 1])
+        with btn_col1:
+            execute_btn = st.button("🚀 执行多因子智能筛选", type="primary", use_container_width=True)
+        with btn_col2:
+            st.button("🧹 重置所有条件", type="secondary", on_click=reset_filters, use_container_width=True)
 
     sort_field, sort_asc = sort_options[sort_choice]
-
-with left_col:
-    # ==================== 主内容区：标签页式管理 ====================
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析", "📰 相关个股重大新闻", "🏆 股神持仓动态"])
-
-with tab1:
-    # 大盘指数已在页面最顶端以迷你徽章展示，此处仅保留大盘热力图，使界面极为干练
-    st.markdown("### 📊 当日港股资金集中度矩阵图 (资金规模 & 涨跌分布)")
-    st.markdown("<p style='font-size:0.9rem; color:var(--text-muted);'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看最新股价、今日涨跌、当日成交额及昨收价格。</p>", unsafe_allow_html=True)
-    render_heatmap()
-
-
-
-# -------------------- TAB 2: 香港股权筛选终端 --------------------
-with tab2:
-    st.markdown("### 🔍 股权筛选及导出")
-    
-    # 动作按钮
-    trigger_col, status_col = st.columns([1, 4])
-    with trigger_col:
-        execute_btn = st.button("🚀 执行筛选", type="primary")
     
     # 构建查询条件
     conditions = [EquityQuery('eq', ['region', 'hk'])]
