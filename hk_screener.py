@@ -1229,7 +1229,7 @@ with left_col:
 with tab1:
     # 大盘指数已在页面最顶端以迷你徽章展示，此处仅保留大盘热力图，使界面极为干练
     st.markdown("### 📊 当日港股资金集中度矩阵图 (资金规模 & 涨跌分布)")
-    st.markdown("<p style='font-size:0.9rem; color:var(--text-muted);'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看主力资金净流入、最新股价及成交额详情。</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:0.9rem; color:var(--text-muted);'>卡片按 <b>当日成交额从大到小排序</b>（反映资金集中度），颜色代表 <b>今日涨跌幅</b>（红升绿跌：红色上涨，绿色/青色下跌）。鼠标悬停在卡片上可查看最新股价、今日涨跌、当日成交额及昨收价格。</p>", unsafe_allow_html=True)
     render_heatmap()
 
 
