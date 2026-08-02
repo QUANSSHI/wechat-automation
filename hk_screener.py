@@ -671,7 +671,110 @@ def fetch_multi_market_pe(sector_en):
                 pass
     return results
 
-# ==================== 缓存单股详情及行情数据 ====================
+# ==================== 股神持仓数据 ====================
+# 基于最新 SEC 13F 季度披露报告和公开资料整理的核心持仓
+GURU_PORTFOLIOS = {
+    "buffett": {
+        "name": "沃伦·巴菲特",
+        "name_en": "Warren Buffett",
+        "company": "伯克希尔·哈撒韦 (Berkshire Hathaway)",
+        "avatar": "🧙‍♂️",
+        "style": "价值投资之父，长期持有护城河企业",
+        "accent": "#f59e0b",
+        "holdings": [
+            {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股"},
+            {"symbol": "AXP", "name": "美国运通 American Express", "market": "美股"},
+            {"symbol": "BAC", "name": "美国银行 Bank of America", "market": "美股"},
+            {"symbol": "KO", "name": "可口可乐 Coca-Cola", "market": "美股"},
+            {"symbol": "CVX", "name": "雪佛龙 Chevron", "market": "美股"},
+            {"symbol": "OXY", "name": "西方石油 Occidental Petroleum", "market": "美股"},
+            {"symbol": "MCO", "name": "穆迪 Moody's", "market": "美股"},
+            {"symbol": "KHC", "name": "卡夫亨氏 Kraft Heinz", "market": "美股"},
+            {"symbol": "CB", "name": "安达保险 Chubb Limited", "market": "美股"},
+            {"symbol": "DVA", "name": "达维塔 DaVita", "market": "美股"},
+            {"symbol": "KR", "name": "克罗格 Kroger", "market": "美股"},
+            {"symbol": "SIRI", "name": "天狼星XM SiriusXM", "market": "美股"},
+        ]
+    },
+    "duan": {
+        "name": "段永平",
+        "name_en": "Yongping Duan",
+        "company": "步步高 / 个人投资",
+        "avatar": "🎯",
+        "style": "中国巴菲特，专注消费和科技龙头，重仓少数优质企业",
+        "accent": "#ef4444",
+        "holdings": [
+            {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股"},
+            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股"},
+            {"symbol": "BRK-B", "name": "伯克希尔B Berkshire B", "market": "美股"},
+            {"symbol": "0700.HK", "name": "腾讯控股", "market": "港股"},
+            {"symbol": "BABA", "name": "阿里巴巴 (美股)", "market": "美股"},
+            {"symbol": "PDD", "name": "拼多多 PDD Holdings", "market": "美股"},
+            {"symbol": "META", "name": "Meta Platforms", "market": "美股"},
+        ]
+    },
+    "lilu": {
+        "name": "李录",
+        "name_en": "Li Lu",
+        "company": "喜马拉雅资本 (Himalaya Capital)",
+        "avatar": "🏔️",
+        "style": "芒格接班人，深度价值投资，偏好亚洲核心资产",
+        "accent": "#3b82f6",
+        "holdings": [
+            {"symbol": "BRK-A", "name": "伯克希尔A Berkshire A", "market": "美股"},
+            {"symbol": "BAC", "name": "美国银行 Bank of America", "market": "美股"},
+            {"symbol": "MU", "name": "美光科技 Micron Technology", "market": "美股"},
+            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股"},
+            {"symbol": "EWBC", "name": "华美银行 East West Bancorp", "market": "美股"},
+            {"symbol": "OXY", "name": "西方石油 Occidental Petroleum", "market": "美股"},
+        ]
+    }
+}
+
+@st.cache_data(ttl=1800)  # 缓存 30 分钟
+def fetch_guru_holdings_prices(guru_key):
+    """并发获取某位股神持仓的实时价格和涨跌幅"""
+    guru = GURU_PORTFOLIOS.get(guru_key)
+    if not guru:
+        return []
+    
+    symbols = [h['symbol'] for h in guru['holdings']]
+    results = []
+    
+    def fetch_one(holding):
+        sym = holding['symbol']
+        try:
+            t = yf.Ticker(sym)
+            info = t.info
+            price = info.get('currentPrice') or info.get('regularMarketPrice', 0)
+            prev = info.get('regularMarketPreviousClose', 0)
+            change_pct = ((price - prev) / prev * 100) if prev and prev > 0 else 0
+            mcap = info.get('marketCap', 0)
+            pe = info.get('trailingPE')
+            div_rate = info.get('dividendRate', 0)
+            div_yield_pct = (float(div_rate) / float(price) * 100) if div_rate and price and price > 0 else 0
+            week52_high = info.get('fiftyTwoWeekHigh', 0)
+            off_high = ((price - week52_high) / week52_high * 100) if week52_high and week52_high > 0 else 0
+            currency = info.get('currency', 'USD')
+            return {
+                **holding,
+                'price': price,
+                'change_pct': change_pct,
+                'mcap_b': mcap / 1e9 if mcap else 0,
+                'pe': pe,
+                'div_yield': div_yield_pct,
+                'off_high': off_high,
+                'currency': currency,
+            }
+        except Exception:
+            return {**holding, 'price': 0, 'change_pct': 0, 'mcap_b': 0, 'pe': None, 'div_yield': 0, 'off_high': 0, 'currency': 'USD'}
+    
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(fetch_one, guru['holdings']))
+    
+    return results
+
+
 @st.cache_data(ttl=3600)  # 缓存 1 小时
 def fetch_single_stock_info_and_history(symbol):
     try:
@@ -1224,7 +1327,7 @@ with right_col:
 
 with left_col:
     # ==================== 主内容区：标签页式管理 ====================
-    tab1, tab2, tab3, tab4 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析", "📰 相关个股重大新闻"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏛️ 大盘监控与量化策略", "🔍 香港股权筛选终端", "📊 个股深度图表分析", "📰 相关个股重大新闻", "🏆 股神持仓动态"])
 
 with tab1:
     # 大盘指数已在页面最顶端以迷你徽章展示，此处仅保留大盘热力图，使界面极为干练
@@ -1640,6 +1743,113 @@ with tab4:
                 st.info("所选股票近期暂无重大新闻报道。")
         else:
             st.info("💡 请先在第二栏执行筛选获取选股池，或者在大盘和个股页面激活目标，这里将展示选股池中个股的聚合新闻动态。")
+
+# -------------------- TAB 5: 股神持仓动态跟踪 --------------------
+with tab5:
+    st.markdown("### 🏆 股神持仓动态跟踪")
+    st.markdown("<p style='font-size:0.9rem; color:var(--text-muted);'>实时追踪全球顶级价值投资大师的核心持仓标的，数据基于 SEC 13F 季报及公开信息整理，行情实时刷新。</p>", unsafe_allow_html=True)
+    
+    for guru_key in ["buffett", "duan", "lilu"]:
+        guru = GURU_PORTFOLIOS[guru_key]
+        accent = guru['accent']
+        
+        # 投资大师名片卡
+        st.markdown(f"""<div style="margin: 20px 0 10px 0; padding: 14px 20px; border-radius: 10px; background: linear-gradient(135deg, {accent}15, {accent}05); border: 1px solid {accent}35;">
+            <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                <span style="font-size: 2.2rem;">{guru['avatar']}</span>
+                <div>
+                    <div style="font-size: 1.2rem; font-weight: 800; color: {accent};">{guru['name']} <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted);">{guru['name_en']}</span></div>
+                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">{guru['company']}</div>
+                </div>
+                <div style="margin-left: auto; padding: 5px 14px; border-radius: 16px; background: {accent}18; border: 1px solid {accent}40; font-size: 0.78rem; color: {accent}; font-weight: 600;">{guru['style']}</div>
+            </div>
+        </div>""", unsafe_allow_html=True)
+        
+        # 获取实时持仓数据
+        with st.spinner(f"正在拉取 {guru['name']} 持仓实时行情..."):
+            holdings = fetch_guru_holdings_prices(guru_key)
+        
+        if holdings:
+            # 构建 DataFrame
+            rows = []
+            for h in holdings:
+                pe_str = f"{h['pe']:.2f}" if h['pe'] else "N/A"
+                change_val = h['change_pct']
+                rows.append({
+                    '代码': h['symbol'],
+                    '持仓标的': h['name'],
+                    '市场': h['market'],
+                    f'最新价': f"{h['price']:.2f} {h['currency']}" if h['price'] else "N/A",
+                    '今日涨跌(%)': round(change_val, 2),
+                    '市值(亿USD)': round(h['mcap_b'], 1),
+                    'PE': pe_str,
+                    '股息率(%)': round(h['div_yield'], 2),
+                    '距52周高(%)': round(h['off_high'], 1),
+                })
+            
+            df_guru = pd.DataFrame(rows)
+            
+            # 使用 HTML 渲染带颜色的表格
+            table_rows_html = ""
+            for _, row in df_guru.iterrows():
+                change = row['今日涨跌(%)']
+                if change > 0:
+                    change_color = "#f87171"
+                    change_str = f"+{change:.2f}%"
+                elif change < 0:
+                    change_color = "#2dd4bf"
+                    change_str = f"{change:.2f}%"
+                else:
+                    change_color = "var(--text-muted)"
+                    change_str = f"{change:.2f}%"
+                
+                off_high = row['距52周高(%)']
+                if off_high >= -5:
+                    high_color = "#10b981"
+                elif off_high >= -15:
+                    high_color = "#f59e0b"
+                else:
+                    high_color = "#ef4444"
+                
+                market_badge_bg = "#a855f720" if row['市场'] == '港股' else "#3b82f620"
+                market_badge_color = "#a855f7" if row['市场'] == '港股' else "#3b82f6"
+                
+                table_rows_html += f"""<tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                    <td style="padding:8px 10px;font-weight:600;color:var(--text-value);font-size:0.85rem;">{row['代码']}</td>
+                    <td style="padding:8px 10px;font-size:0.85rem;">{row['持仓标的']}</td>
+                    <td style="padding:8px 6px;"><span style="padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;background:{market_badge_bg};color:{market_badge_color};">{row['市场']}</span></td>
+                    <td style="padding:8px 10px;font-weight:600;color:var(--text-value);font-size:0.85rem;">{row['最新价']}</td>
+                    <td style="padding:8px 10px;font-weight:700;color:{change_color};font-size:0.85rem;">{change_str}</td>
+                    <td style="padding:8px 10px;font-size:0.85rem;color:var(--text-muted);">{row['市值(亿USD)']}</td>
+                    <td style="padding:8px 10px;font-size:0.85rem;color:var(--text-muted);">{row['PE']}</td>
+                    <td style="padding:8px 10px;font-size:0.85rem;color:var(--text-muted);">{row['股息率(%)']:.2f}%</td>
+                    <td style="padding:8px 10px;font-weight:600;color:{high_color};font-size:0.85rem;">{off_high:+.1f}%</td>
+                </tr>"""
+            
+            st.markdown(f"""<div style="overflow-x:auto; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.04);border-bottom:2px solid {accent}40;">
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">代码</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">持仓标的</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">市场</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">最新价</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">今日涨跌</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">市值(亿$)</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">PE</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">股息率</th>
+                        <th style="padding:10px;text-align:left;color:var(--text-muted);font-size:0.78rem;font-weight:600;">距52周高</th>
+                    </tr>
+                </thead>
+                <tbody>{table_rows_html}</tbody>
+            </table>
+            </div>""", unsafe_allow_html=True)
+        else:
+            st.warning(f"暂未获取到 {guru['name']} 的持仓行情数据。")
+    
+    st.markdown("""<div style="margin-top: 16px; padding: 10px 16px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.1);">
+        <span style="font-size: 0.78rem; color: var(--text-muted);">⚠️ 数据说明：持仓标的基于各投资人最近一期 SEC 13F 季度披露报告及公开可查信息整理，仅供参考学习，不构成任何投资建议。实际持仓可能因未披露的交易而有所变化。</span>
+    </div>""", unsafe_allow_html=True)
 
 st.markdown("---")
 st.caption("提示：此智能终端完全在您本地安全运行，与网页相比响应更快。若遇到数据获取慢，可能与网络连接 Yahoo Finance 的连通状况有关。")
