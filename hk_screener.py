@@ -683,6 +683,7 @@ GURU_PORTFOLIOS = {
         "accent": "#f59e0b",
         "holdings": [
             {"symbol": "AAPL", "name": "苹果 Apple", "market": "美股"},
+            {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股"},
             {"symbol": "AXP", "name": "美国运通 American Express", "market": "美股"},
             {"symbol": "BAC", "name": "美国银行 Bank of America", "market": "美股"},
             {"symbol": "KO", "name": "可口可乐 Coca-Cola", "market": "美股"},
@@ -708,6 +709,7 @@ GURU_PORTFOLIOS = {
             {"symbol": "GOOG", "name": "谷歌 Alphabet (C)", "market": "美股"},
             {"symbol": "BRK-B", "name": "伯克希尔B Berkshire B", "market": "美股"},
             {"symbol": "0700.HK", "name": "腾讯控股", "market": "港股"},
+            {"symbol": "9992.HK", "name": "泡泡玛特 Pop Mart", "market": "港股"},
             {"symbol": "BABA", "name": "阿里巴巴 (美股)", "market": "美股"},
             {"symbol": "PDD", "name": "拼多多 PDD Holdings", "market": "美股"},
             {"symbol": "META", "name": "Meta Platforms", "market": "美股"},
