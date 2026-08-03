@@ -1,4 +1,51 @@
-# HKScreener Pro - 香港股权筛选智能终端 🚀
+# Multi-Project Suite / 综合应用工具集 🚀
+
+本仓库已完成全面模块化整理，内部划分 3 个独立且功能强大的项目模块，结构清晰洁净：
+
+```
+d:\Google\
+│
+├── 📁 hk_screener/             # 📊 模块 1：HKScreener Pro 港股股权筛选智能终端
+│   └── hk_screener.py          # Streamlit 主程序
+│
+├── 📁 wechat_automation/       # 💬 模块 2：微信自动化工具箱
+│   ├── wxauto/                 # wxauto 核心自动化驱动库
+│   ├── dump_wechat_deep.py     # 微信 UI 结构深度分析脚本
+│   ├── dump_wechat_ui.py       # 微信控件树 dump 脚本
+│   ├── send_test.py            # 消息发送测试脚本
+│   └── send_via_keys.py        # 仿真按键消息发送脚本
+│
+└── 📁 simple_cad_app/          # 📐 模块 3：Web CAD 轻量级交互应用
+    ├── index.html              # CAD 视图结构
+    ├── style.css              # 暗黑高质感样式
+    └── app.js                 # 2D Canvas 矢量绘图引擎
+```
+
+---
+
+## ⚡ 各模块快速启动指南
+
+### 1. 📊 HKScreener Pro (港股股权筛选终端)
+```bash
+# 进入港股筛选终端目录并启动
+cd hk_screener
+streamlit run hk_screener.py
+```
+启动成功后自动打开：[http://localhost:8501](http://localhost:8501)
+
+### 2. 💬 微信自动化工具箱 (WeChat Automation)
+```bash
+# 进入微信自动化目录并运行测试
+cd wechat_automation
+python send_test.py
+```
+
+### 3. 📐 Web CAD 应用 (Simple CAD App)
+可在浏览器中直接打开 `simple_cad_app/index.html` 访问轻量级 CAD 矢量绘图应用。
+
+---
+
+# HKScreener Pro - 香港股权筛选智能终端
 
 HKScreener Pro 是一款专为香港证券市场设计的轻量级、零配置、极速响应的专业股权筛选与数据可视化智能终端。该终端完全在您的本地安全运行，采用现代化的全宽暗黑视效（Bloomberg 风格）与全中文本土化交互，旨在为您提供媲美专业量化金融终端的选股与投资分析体验。
 
